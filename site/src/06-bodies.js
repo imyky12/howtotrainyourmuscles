@@ -4,7 +4,7 @@
 function lieBody(c,o){let q=qX(o.angle||0).multiply(qLie);
   const hipT=V(0,BENCH_TOP+D.back,HIPS_Z+(o.dz||0));let pos=hipT.clone().sub(D.hips.clone().applyQuaternion(q));
   if(o.hipLift){const Sw=pos.clone().add(D.sh.clone().applyQuaternion(q));q=qX(-o.hipLift).multiply(q);pos=Sw.sub(D.sh.clone().applyQuaternion(q));}
-  c.root.quaternion.copy(q);c.root.position.copy(pos);c._hipT=hipT;resetRest(c);const B=c.bones;
+  c.root.quaternion.copy(q);c.root.position.copy(pos);c._hipT=hipT;resetRest(c);const B=c.bones;thorFlat(c);
   B.Spine1.quaternion.multiply(_q.setFromAxisAngle(V(1,0,0),-.16*.6));
   B.Spine2.quaternion.multiply(_q.setFromAxisAngle(V(1,0,0),-.16*.4+(o.breathe||0)*.02));
   B.Neck.quaternion.multiply(_q.setFromAxisAngle(V(1,0,0),.12+(o.neck||0)));

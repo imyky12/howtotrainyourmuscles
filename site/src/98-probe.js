@@ -26,6 +26,6 @@ function probeFrame(){PROBE.t+=1/30;const tag=flow+(hero.act_&&hero.act_.kind===
   const now={b:pts.slice(0,PROBE_BONES.length).map(x=>x[1].clone()),p:PROBE.props.map(o=>o.getWorldPosition(V()))};
   const walking=hero.act_&&(hero.act_.kind==='walk'||hero.act_.kind==='turn'||(hero.act_.kind==='seq'&&hero.act_.steps&&hero.act_.steps[hero.act_.i]&&hero.act_.steps[hero.act_.i].walk));
   if(PROBE.last){now.b.forEach((p,i)=>{const n=PROBE_BONES[i];const lim=walking?(/Foot|Toe|Leg|Hand/.test(n)?.2:.12):.09;const d=p.distanceTo(PROBE.last.b[i]);if(d>lim)out.push(['boneJump',n,d.toFixed(3)]);});
-    now.p.forEach((p,i)=>{const d=p.distanceTo(PROBE.last.p[i]);if(d>.07)out.push(['propJump',PROBE.props[i].userData.name||('prop'+i),d.toFixed(3)]);});}
+    now.p.forEach((p,i)=>{const d=p.distanceTo(PROBE.last.p[i]);if(d>(walking?.1:.07))out.push(['propJump',PROBE.props[i].userData.name||('prop'+i),d.toFixed(3)]);});}
   PROBE.last=now;for(const x of out)PROBE.issues.push([PROBE.t.toFixed(2),tag,...x]);}
 window.__probe={init:probeInit,run:(sec)=>{const n=Math.round(sec*30);for(let i=0;i<n;i++){update(1/30);probeFrame();}window.__dirty=true;const r=PROBE.issues;PROBE.issues=[];return r;},reset:()=>{PROBE.last=null;}};

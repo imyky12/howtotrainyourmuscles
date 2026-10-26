@@ -216,7 +216,7 @@ function cableReach(c,P,i,x,face,frac,y){const s=i===0?1:-1;const car=V();P.car[
 function cableHoldArms(c,i,both){const s=i===0?1:-1,side=i===0?'Left':'Right';if(!both)armsHang(c,0,-s);const T=torsoAxes(c);
   for(const ss of both?[1,-1]:[s]){const sd=sideOf(ss);const ua=V(0,-1,0).addScaledVector(T.L,ss*.2),fa=V(0,-1,0).addScaledVector(T.L,ss*.08).addScaledVector(T.F,.1);armDir(c,sd,ua,fa,T.L.clone().multiplyScalar(-ss),{hd:V(0,-1,0),curl:1});}}
 // turning on the spot by small steps (no walk clip): through the given canonical headings, standing at (x,z); arms(c) places the arms
-function stepTurns(x,z,hs,arms,d=.6){return hs.map(h=>({d,anim:settle(c=>{standPose(c,{x,z,h,arms:arms?'none':undefined});arms&&arms(c);},{step:1,bend:1})}));}
+function stepTurns(x,z,hs,arms,d=.42){return hs.map(h=>({d,anim:settle(c=>{standPose(c,{x,z,h,arms:arms?'none':undefined});arms&&arms(c);},{step:1,bend:1})}));}
 // a few short steps (no walk clip) from (x0,z0) to (x1,z1) facing h
 function shuffleTo(x0,z0,x1,z1,h,arms,n=3,d=.7){const out=[];for(let i=1;i<=n;i++){const x=lerp(x0,x1,i/n),z=lerp(z0,z1,i/n);
   out.push({d,anim:settle(c=>{standPose(c,{x,z,h,arms:arms?'none':undefined});arms&&arms(c);},{step:1,bend:1})});}return out;}

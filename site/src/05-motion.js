@@ -53,7 +53,7 @@ function walkTick(c,dt){const a=c.act_;const rem=a.L-a.s;
   if(a.land&&a.rem0&&c.cur===wa){walkSync(c,a,1-rm/a.rem0,a.rem0,false);}else play(c,'walk',.3,Math.max(.2,a.v/WALK_STRIDE));
   if(a.s>=a.L-.005){if(a.face!==undefined&&Math.abs(angDiff(a.face,c.heading))>.06){c.act_={kind:'turn',h:a.face,done:a.done,land:a.land};}
     else{c.act_={kind:'idle'};play(c,'idle',.4);a.done&&a.done();}}}
-function turnTick(c,dt){const a=c.act_;if(a.h0===undefined)a.h0=Math.abs(angDiff(a.h,c.heading));const d=angDiff(a.h,c.heading);const st=Math.sign(d)*Math.min(Math.abs(d),dt*(a.land?1.7:2.4));c.heading+=st;place(c);
+function turnTick(c,dt){const a=c.act_;if(a.h0===undefined)a.h0=Math.abs(angDiff(a.h,c.heading));const d=angDiff(a.h,c.heading);const st=Math.sign(d)*Math.min(Math.abs(d),dt*(a.land?3.0:3.4));c.heading+=st;place(c);
   if(a.land)walkSync(c,a,a.h0>1e-3?1-Math.abs(angDiff(a.h,c.heading))/a.h0:1,a.h0*.3,false);else play(c,'walk',.25,.55);if(Math.abs(d)<.03){c.heading=a.h;place(c);c.act_={kind:'idle'};play(c,'idle',.35);a.done&&a.done();}}
 
 // ---- scripted sequences
@@ -78,8 +78,8 @@ function seqTick(c,dt){const a=c.act_;const S=a.steps[a.i];if(!S)return;a.t+=dt;
     // the steps follow the body's eased speed (slow at the start and the stop), so the feet don't swing at full speed while the body stops
     const v=Math.max(.35,6*k*(1-k)/1.5);if(S.land){walkSync(c,a,smooth(k),a.from.distanceTo(a.to)*(S.back?-1:1));if(!a.wk.dfix){a.wk.dfix=1;a.d=Math.max(a.d,Math.abs(a.wk.T-a.wk.t0)*1.5/1.3);}} // (a short landed step is stretched so the clip never runs faster than 1.3x: a quicker step flicks the swinging foot)else play(c,'walk',.25,(S.back?-1:1)*clamp(a.from.distanceTo(a.to)*6*k*(1-k)/a.d/WALK_STRIDE,.3,1.35)); // the clip at the body's speed (feet planted), never hurried past a brisk walkc._ph=(c._ph||0)+dt*(S.back?3:4)*v;
     clipPost(c,dt);if(k>=1){play(c,'idle',.3);nextStep(c);}return;}
-  if(S.turn!==undefined){if(a.h0===undefined)a.h0=Math.abs(angDiff(a.h,c.heading));const d=angDiff(a.h,c.heading);c.heading+=Math.sign(d)*Math.min(Math.abs(d),dt*2.2);place(c);
-    if(S.land)walkSync(c,a,a.h0>1e-3?1-Math.abs(angDiff(a.h,c.heading))/a.h0:1,a.h0*.3);else play(c,'walk',.25,.34);clipPost(c,dt);if(Math.abs(d)<.03){c.heading=a.h;place(c);play(c,'idle',.3);a.h0=undefined;nextStep(c);}return;}
+  if(S.turn!==undefined){if(a.h0===undefined)a.h0=Math.abs(angDiff(a.h,c.heading));const d=angDiff(a.h,c.heading);c.heading+=Math.sign(d)*Math.min(Math.abs(d),dt*3.2);place(c);
+    if(S.land)walkSync(c,a,a.h0>1e-3?1-Math.abs(angDiff(a.h,c.heading))/a.h0:1,a.h0*.3);else play(c,'walk',.25,.7);clipPost(c,dt);if(Math.abs(d)<.03){c.heading=a.h;place(c);play(c,'idle',.3);a.h0=undefined;nextStep(c);}return;}
   const k=clamp(a.t/S.d,0,1);
   if(S.anim){S.anim(c,k);frame(c,a.st);}
   else{S.pose(c,k);frame(c,a.st);const B=snapshot(c);blendTo(c,a.from,B,S.lin?k:ease(k));}
@@ -92,7 +92,7 @@ function seqTick(c,dt){const a=c.act_;const S=a.steps[a.i];if(!S)return;a.t+=dt;
 // character's clip is time-scaled to the same WALK_STRIDE, so the clip played at timeScale v/WALK_STRIDE keeps the feet planted)
 const WALK_STRIDE=0.916; // metres of travel per second of the walk clip (how fast its planted foot moves back)
 const WALK_PASS=[0.438,1.094]; // clip times where the swinging foot passes the planted one
-const WALK_SPEED=1.05; // cruising speed along a path (m/s): the clip then plays at WALK_SPEED/WALK_STRIDE
+const WALK_SPEED=1.3; // cruising speed along a path (m/s): the clip then plays at WALK_SPEED/WALK_STRIDE
 // the pass-phase clip time to finish at, from clip time t0 with A0 clip-seconds of travel ahead: {T, m = how much faster the clip runs}
 // (a hurried clip swings the foot fast, so slowing down is preferred to speeding up, and more than a third faster is never
 // chosen: a stalled clip (a pivot on the spot) is better than a flicked foot)

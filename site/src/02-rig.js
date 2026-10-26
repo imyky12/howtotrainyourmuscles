@@ -90,7 +90,23 @@ function measure(c){const r=c.root;r.position.set(0,0,0);r.quaternion.identity()
   const B=c.bones,w=n=>wpos(B[n]);const H=w('Hips'),A=w('LeftArm'),F=w('LeftForeArm'),Hd=w('LeftHand'),U=w('LeftUpLeg'),L=w('LeftLeg'),Ft=w('LeftFoot'),T=w('LeftToeBase');
   D.s=H.y/1.04;D.shrug0=A.y-w('Neck').y;D.hips.set(0,H.y,H.z);D.sh.set(0,A.y,A.z);D.shx=A.x;D.arm=A.distanceTo(F);D.fore=F.distanceTo(Hd);D.thigh=U.distanceTo(L);D.shin=L.distanceTo(Ft);
   D.hipx=U.x;D.upLeg=U.clone();D.ankY=Ft.y;D.footL=Ft.distanceTo(T);D.neck=w('Neck');D.head=w('Head');D.spine2=w('Spine2');D.spine=w('Spine');
-  D.back=.16*D.s*1.04;D.chest=.235*D.s*1.12;GRIP=.29*D.shx/.152;}
+  D.back=.16*D.s*1.04;D.chest=chestFront(c,A)-A.z+.008;GRIP=.29*D.shx/.152;
+  // spine segments laid out the Xbot way (the measurements of back shape were defined on that layout); the mesh keeps its natural curve
+  D.vseg={};for(const [b,ch] of [['Spine','Spine1'],['Spine1','Spine2'],['Spine2','Neck'],['Neck','Head']]){const o=w(ch).sub(w(b));D.vseg[b]=XSPINE[b]?XSPINE[b].clone().normalize().multiplyScalar(o.length()):o;}
+  // how much further forward the natural upper spine carries the neck than that layout (rad, + = forward), seen from Spine1
+  const n1=w('Neck').sub(w('Spine1')),v1=D.vseg.Spine1.clone().add(D.vseg.Spine2);D.thor=Math.atan2(n1.z,n1.y)-Math.atan2(v1.z,v1.y);}
+// lying on the back: the upper back flattens onto the support so the head rests on it (k=.6 puts the back of the head where the
+// Xbot-layout spine had it, within 3 mm; no-op for an Xbot-layout spine)
+function thorFlat(c,k=.6){const B=c.bones,a=-D.thor*.5*k;B.Spine1.quaternion.multiply(_q.setFromAxisAngle(V(1,0,0),a));B.Spine2.quaternion.multiply(_q.setFromAxisAngle(V(1,0,0),a));}
+const XSPINE={Spine:V(0,.101,-.010),Spine1:V(0,.091,-.014),Spine2:V(0,.166,-.025)}; // Xbot's rest directions of these segments
+// spine joints as they would sit on the Xbot-layout spine (the real bones rotate them): for back-shape readings (rounding, arching)
+function vSpine(c){const B=c.bones,q=new THREE.Quaternion(),out={Hips:wpos(B.Hips),Spine:wpos(B.Spine)};let p=out.Spine;
+  for(const [b,ch] of [['Spine','Spine1'],['Spine1','Spine2'],['Spine2','Neck'],['Neck','Head']]){B[b].getWorldQuaternion(q);p=p.clone().add(D.vseg[b].clone().applyQuaternion(q));out[ch]=p;}return out;}
+// front of the shirt at chest height (rest pose, model space): how far the chest stands in front of the shoulder joints decides
+// where a bar or dumbbells touch it (D.chest is that distance plus the bar's radius)
+function chestFront(c,A){let z=-1;for(const m of c.meshes){const n=(m.material&&m.material.name)||'';if(!/^Cloth.*(shirt|tank|top)/i.test(n))continue;
+    const P=m.geometry.attributes.position;for(let i=0;i<P.count;i++){const x=P.getX(i),y=P.getY(i);if(Math.abs(x)<.1&&y>A.y-.25&&y<A.y-.12)z=Math.max(z,P.getZ(i));}}
+  return z>-1?z:A.z+.235*D.s*1.12-.008;}
 function reach(){return Math.sqrt(Math.pow((D.arm+D.fore)*.97,2)-Math.pow(GRIP-D.shx,2));}
 
 const PALM=V(0,-.89,.46).normalize(); // hand-local palm normal at rest (fingers +X left / -X right)

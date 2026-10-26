@@ -99,7 +99,7 @@ Object.assign(MEAS,{
   elbowTop:{at:'top',get:c=>avg2(s=>elbowAng(c,s)),fmt:v=>v>=160?'arms straight at the top ('+Math.round(v)+'°)':'elbows stay bent at '+Math.round(v)+'°'},
   leanRange:{pick:'range',get:c=>torsoLean(c),fmt:v=>v<10?'torso still (moves '+Math.round(v)+'°)':'torso swings '+Math.round(v)+'° each rep'},
   barNeck:{at:'top',get:(c,x)=>{const z=x.P.bar.position.z,hz=wpos(c.bones.Head).z;return (z-hz)*100;},fmt:v=>v>4?'bar comes down in front of the face':'bar goes behind the head'},
-  lumbar:{pick:'max',get:c=>{const a=V().subVectors(wpos(c.bones.Spine1),wpos(c.bones.Hips)).normalize(),b2=V().subVectors(wpos(c.bones.Neck),wpos(c.bones.Spine2)).normalize();return Math.acos(clamp(a.dot(b2),-1,1))/DEG;},fmt:v=>v<12?'back stays flat':'lower back rounds '+Math.round(v)+'°'},
+  lumbar:{pick:'max',get:c=>{const S=vSpine(c);const a=V().subVectors(S.Spine1,S.Hips).normalize(),b2=V().subVectors(S.Neck,S.Spine2).normalize();return Math.acos(clamp(a.dot(b2),-1,1))/DEG;},fmt:v=>v<12?'back stays flat':'lower back rounds '+Math.round(v)+'°'},
   rowFlare:{at:'top',get:c=>flareDeg(c,'Left'),fmt:v=>v<55?'elbows '+Math.round(v)+'° from the body':'elbows flared to '+Math.round(v)+'°'},
   shoulderRot:{pick:'max',get:c=>{const d=V().subVectors(wpos(c.bones.LeftArm),wpos(c.bones.RightArm));return Math.abs(Math.asin(clamp(d.y/d.length(),-1,1))/DEG);},fmt:v=>v<12?'shoulders square to the floor':'shoulders twist '+Math.round(v)+'°'},
   dbRowFlare:{at:'top',get:c=>flareDeg(c,'Right'),fmt:v=>v<50?'elbow tight to the body ('+Math.round(v)+'°)':'elbow flared to '+Math.round(v)+'°'},
@@ -248,7 +248,7 @@ defEx('cableRow',{group:'back',name:'Seated cable row',eq:'Cable',part:'Middle b
   cues:[['Reach slowly.'],['Stretch.'],['Elbows back along the ribs.','Torso still, arms move.'],['Hold one second.']],
   beginner:'3 sets of 10–12. Lean forward and let the stack rest before you let go of the handle.',
   forms:mk({lower:2.0,touch:.3,press:1.0,lock:1.0,prof:'smooth'},{
-    rock:MS('Rocking','Torso rocks forward and back','The torso rocks about 25° forward and back on every pull.','The lower back and momentum move the weight.','You lift heavier stacks without a bigger back.','Torso still. Only the arms move.',{rock:1,meas:'leanRange',warn:'Rocking torso',warnAt:'lowback',cam:'sideFlat'}),
+    rock:MS('Rocking','Torso rocks forward and back','The torso rocks 25–30° forward and back on every pull.','The lower back and momentum move the weight.','You lift heavier stacks without a bigger back.','Torso still. Only the arms move.',{rock:1,meas:'leanRange',warn:'Rocking torso',warnAt:'lowback',cam:'sideFlat'}),
     shrug:MS('Shrugging','Shoulders rise toward the ears','The shoulders rise 5–7 cm toward the ears at the end of the pull.','The upper traps take over from the middle back.','Tight upper traps, little middle-back growth.','Shoulders down, elbows back.',{shrug:1,meas:'shrugRise',warn:'Shoulders shrug',warnAt:'neck',cam:'front',strain:['trapU'],mul:{trapU:2.5}}),
     short:MS('Short pull','Handle stops short of the belly','The handle stops 10–15 cm in front of the belly.','The shoulder blades never squeeze together.','A weaker middle back.','Handle to the belly button.',{shortR:1,meas:'handleBelly',warn:'Stops short',warnAt:'chest',cam:'sideFlat'})})});
 defEx('barRow',{group:'back',name:'Barbell bent-over row',eq:'Barbell',part:'Middle back',station:'platform',entry:'floorBar',kind:'pull',pose:poseBarRow,

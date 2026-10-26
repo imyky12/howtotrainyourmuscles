@@ -274,13 +274,13 @@ function seatCalfSit(c,P,padY,free){setRoot(c,qX(4*DEG),V(0,SCS.seatY+.1*D.s,-12
   for(const [i,s] of [1,-1].entries()){const sd=sideOf(s);legTo(c,sd,ft[i].A,V(0,.4,1));footTo(c,sd,ft[i].toe.clone().add(V(0,0,.05)));}
   const kn=wpos(c.bones.LeftLeg);const y=padY??kn.y+.08;P.padAt(y);const pz=kn.z-.11;P.pad.position.z=pz-P.lever.position.z;P.lever.updateMatrixWorld(true);
   const pw=V();P.pad.getWorldPosition(pw);ST.g.worldToLocal(pw);
-  for(const s of[1,-1]){if(free){const K=wpos(c.bones[sideOf(s)+'Leg']),H=wpos(c.bones[sideOf(s)+'UpLeg']);armTo(c,sideOf(s),H.lerp(K,.6).add(V(s*.07,.05,0)),{hd:V(0,-.4,1),pn:V(-s,-.5,0),pole:V(s*.6,-.3,-.6),curl:.5});}
-    else armTo(c,sideOf(s),pw.clone().add(V(s*.235,0,0)),{hd:V(0,-.3,1),pn:V(-s,0,0),pole:V(s*.5,-.3,-1),curl:.8});}return kn.y+.08;}
+  for(const s of[1,-1]){if(free===true){const K=wpos(c.bones[sideOf(s)+'Leg']),H=wpos(c.bones[sideOf(s)+'UpLeg']);armTo(c,sideOf(s),H.lerp(K,.6).add(V(s*.07,.05,0)),{hd:V(0,-.4,1),pn:V(-s,-.5,0),pole:V(s*.6,-.3,-.6),curl:.5});}
+    else armTo(c,sideOf(s),pw.clone().add(V(s*.235,free==='above'?.08:0,0)),{hd:V(0,-.3,1),pn:V(-s,0,0),pole:V(s*.5,-.3,-1),curl:free==='above'?.3:.8});}return kn.y+.08;}
 const SCS_FEET=()=>calfFeet(null,SCS.stepY,SCS.edgeZ,0).map(f=>({a:f.A,t:f.toe.clone().add(V(0,0,.05)),pole:V(0,.4,1)}));
 const SCS_UP=1.0;
 ENTRY.seatCalf={pre:[.8,-12.1],face:-Math.PI/2,
   enter:(st,e)=>[{walk:[.42,-12.1],d:.7},{turn:0},{d:.45,pose:c=>standPose(c,{x:.42,z:-12.1,h:0}),props:plantFeet(st,standFeet({x:.42,z:-12.1,h:0}))}, // arms settle at the sides before sitting (from a mid-swing arm the hand cut through the frame post)
-    {d:1.0,pose:c=>seatCalfSit(c,st.P,SCS_UP),props:plantFeet(st,SCS_FEET())},
+    {d:.8,pose:c=>seatCalfSit(c,st.P,SCS_UP,'above'),props:plantFeet(st,SCS_FEET())},{d:.4,pose:c=>seatCalfSit(c,st.P,SCS_UP)}, // hands come onto the handles from above
     {d:.9,anim:(c,k)=>{const y=seatCalfSit(c,st.P,SCS_UP);seatCalfSit(c,st.P,lerp(SCS_UP,y,smooth(k)));}},{d:.8,pose:exP(.5,3)},{d:.6,anim:exFrom(.5,1)}],
   leave:(st,e)=>[{d:.8,pose:exP(.5,3)},{d:.9,anim:(c,k)=>{const y=seatCalfSit(c,st.P,SCS_UP);seatCalfSit(c,st.P,lerp(y,SCS_UP,smooth(k)));}},
     {d:.6,pose:c=>seatCalfSit(c,st.P,SCS_UP,true)},{d:.9,pose:c=>standPose(c,{x:.42,z:-12.1,h:Math.PI/2}),props:plantFeet(st,standFeet({x:.42,z:-12.1,h:Math.PI/2}))},{walk:[.8,-12.1],d:.6}]};
@@ -335,12 +335,12 @@ defEx('squat',{group:'legs',name:'Back squat',eq:'Barbell',part:'Quads & glutes'
   mus:{quadV:[1,'m'],glute:[1,'m'],quadRF:[.35,'h'],adduct:[.7,'h'],hams:[.3,'h'],erect:[.55,'h'],gastroc:[.25,'h']},
   labels:[['Quads','quadV','m'],['Glutes','glute','m'],['Adductors','adduct','h']],center:V(0,.95,-11.95),cam:'frontQ',coachSpot:{p:[-1.4,-12.6],h:Math.PI/2-.4},
   steps:steps4([['Sit down between the heels','2 sec, brace'],['Hip crease below the knee','depth'],['Drive up','breathe out'],['Stand tall','reset the breath']]),
-  stepText:['Big breath, brace, and sit down between your heels. Knees travel forward and out over the toes; that’s normal.','Hip crease below the top of the knee. Torso about 35° forward, bar over the middle of the foot.','Drive up, chest and hips rising together. Breathe out past the hardest part.','Stand tall with straight legs. Breathe and brace for the next rep.'],
+  stepText:['Big breath, brace, and sit down between your heels. Knees travel forward and out over the toes; that’s normal.','Hip crease below the top of the knee. Torso about 40° forward, bar over the middle of the foot.','Drive up, chest and hips rising together. Breathe out past the hardest part.','Stand tall with straight legs. Breathe and brace for the next rep.'],
   cues:[['Sit between your heels.'],['Below the knee.'],['Drive up, knees out.'],['Stand tall.']],
   beginner:'3 sets of 6–10, starting with the empty 20 kg bar. Set the safety arms at the height of the bar at the bottom.',
   forms:mk({lower:2.0,touch:.25,press:1.1,lock:.8,prof:'smooth'},{
     kneeIn:MS('Knees cave in','Knees drift inward on the way up','Both knees drift about 10 cm inward at the bottom.','The adductors take over and the glutes aren’t driving.','Repeated caving under load is linked with knee pain.','Push the knees out over the toes.',{kneeIn:1,meas:'fppa',warn:'Knees cave',warnAt:'knee',cam:'front',strain:['adduct']}),
-    goodMorning:MS('Good-morning squat','Hips shoot up, chest drops','The hips rise first and the torso tips forward to about 60°.','The load moves from the quads to the lower back.','The lower back limits your squat; the quads get less work.','Chest up; knees and hips rise together.',{goodMorning:1,meas:'torsoBottom',warn:'Chest drops',warnAt:'lowback',cam:'sideHigh',strain:['erect']}),
+    goodMorning:MS('Good-morning squat','Hips shoot up, chest drops','The hips rise first and the torso tips forward past 60°.','The load moves from the quads to the lower back.','The lower back limits your squat; the quads get less work.','Chest up; knees and hips rise together.',{goodMorning:1,meas:'torsoBottom',warn:'Chest drops',warnAt:'lowback',cam:'sideHigh',strain:['erect']}),
     half:MS('Half squat','Stops well above parallel','The squat stops with the thighs well above parallel.','The glutes and adductors miss their hardest range.','Half squats grew the glutes about a third as much in one study.','Sit lower: hips below the knees.',{half:1,meas:'depth',warn:'Too shallow',warnAt:'hips',cam:'sideHigh'})})});
 defEx('rdl',{group:'legs',name:'Romanian deadlift',eq:'Barbell',part:'Hamstrings',station:'platform',entry:'rdlBar',kind:'hinge',pose:poseRDL,
   quip:'A bow so deep your hamstrings applaud.',coachIn:'Lift it once from the floor, then hinge.',
@@ -399,7 +399,7 @@ defEx('legCurl',{group:'legs',name:'Lying leg curl',eq:'Machine',part:'Hamstring
   cues:[['Two seconds down.'],['Almost straight.'],['Heels to the bum.'],['Squeeze.']],
   beginner:'3 sets of 10–15. Roller on the ankles, not the calves. The gym has no seated curl, which grows the hamstrings a bit more.',
   forms:mk({lower:2.0,touch:.2,press:1.0,lock:1.0,prof:'smooth'},{
-    hips:MS('Hips lift','Hips rise off the pad','The hips rise off the pad, the hip angle changes about 20°, and the back arches to cheat.','The hip flexors and back do the lift.','Lower-back ache; hamstrings under-loaded.','Hips glued to the pad.',{hips:1,meas:'curlHip',warn:'Hips lift',warnAt:'hips',cam:'sideFlat'}),
+    hips:MS('Hips lift','Hips rise off the pad','The hips rise off the pad, the hip angle changes 20–30°, and the back arches to cheat.','The hip flexors and back do the lift.','Lower-back ache; hamstrings under-loaded.','Hips glued to the pad.',{hips:1,meas:'curlHip',warn:'Hips lift',warnAt:'hips',cam:'sideFlat'}),
     half:MS('Half curl','Heels stop halfway up','The curl stops at about 110° at the knee.','No peak squeeze.','Slower growth.','Heels all the way up.',{half:1,meas:'curlTop',warn:'Stops short',warnAt:'knee',cam:'sideFlat'}),
     drop:MS('Dropping the weight','Roller drops in a blink','The roller drops in under half a second and bounces.','Half the training effect is lost.','Fewer gains and bruised ankles.','Two seconds on the way down.',{lower:.45,touch:.05,meas:'lowerTime',warn:'Weight drops',warnAt:'knee',cam:'sideFlat'})})});
 defEx('hipThrust',{group:'legs',name:'Barbell hip thrust',eq:'Barbell',part:'Glutes',station:'hipThrust',entry:'hipThrust',kind:'raise',pose:poseHipThrust,
@@ -413,7 +413,7 @@ defEx('hipThrust',{group:'legs',name:'Barbell hip thrust',eq:'Barbell',part:'Glu
   forms:mk({lower:1.0,touch:.3,press:1.0,lock:1.0,prof:'smooth'},{
     arch:MS('Arched lower back','Finishes by arching the back','The hips go past level and the lower back arches, ribs flared, head dropped back.','The lower back, not the glutes, closes the last part.','Lower-back ache, and the glutes never fully squeeze.','Ribs down, squeeze, no arch.',{arch:1,meas:'hipTop',warn:'Back arches',warnAt:'lowback',cam:'sideFlat',strain:['erect']}),
     far:MS('Feet too far out','Shins lean forward at the top','The feet are too far out, so the shins lean forward at the top.','The hamstrings take over.','Hamstring cramps and less glute work.','Shins straight up at the top.',{far:1,meas:'shinTop',warn:'Feet too far',warnAt:'knee',cam:'sideFlat',mul:{hams:1.6,glute:.8}}),
-    half:MS('Half thrust','Hips stop below level','The hips stop well below level, at a hip angle of about 140°.','The glute’s hardest range, full extension, is skipped.','Less growth.','Hips all the way up.',{half:1,meas:'hipTop',warn:'Stops short',warnAt:'hips',cam:'sideFlat'})})});
+    half:MS('Half thrust','Hips stop below level','The hips stop well below level, at a hip angle of about 135°.','The glute’s hardest range, full extension, is skipped.','Less growth.','Hips all the way up.',{half:1,meas:'hipTop',warn:'Stops short',warnAt:'hips',cam:'sideFlat'})})});
 defEx('standCalf',{group:'legs',name:'Standing calf raise',eq:'Machine',part:'Calves',station:'standCalf',entry:'standCalf',kind:'raise',pose:poseStandCalf,
   quip:'Tiptoes, but make it heavy.',
   mus:{gastroc:[1,'m'],soleus:[.9,'m']},

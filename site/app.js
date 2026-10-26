@@ -235,7 +235,23 @@ function measure(c){const r=c.root;r.position.set(0,0,0);r.quaternion.identity()
   const B=c.bones,w=n=>wpos(B[n]);const H=w('Hips'),A=w('LeftArm'),F=w('LeftForeArm'),Hd=w('LeftHand'),U=w('LeftUpLeg'),L=w('LeftLeg'),Ft=w('LeftFoot'),T=w('LeftToeBase');
   D.s=H.y/1.04;D.shrug0=A.y-w('Neck').y;D.hips.set(0,H.y,H.z);D.sh.set(0,A.y,A.z);D.shx=A.x;D.arm=A.distanceTo(F);D.fore=F.distanceTo(Hd);D.thigh=U.distanceTo(L);D.shin=L.distanceTo(Ft);
   D.hipx=U.x;D.upLeg=U.clone();D.ankY=Ft.y;D.footL=Ft.distanceTo(T);D.neck=w('Neck');D.head=w('Head');D.spine2=w('Spine2');D.spine=w('Spine');
-  D.back=.16*D.s*1.04;D.chest=.235*D.s*1.12;GRIP=.29*D.shx/.152;}
+  D.back=.16*D.s*1.04;D.chest=chestFront(c,A)-A.z+.008;GRIP=.29*D.shx/.152;
+  // spine segments laid out the Xbot way (the measurements of back shape were defined on that layout); the mesh keeps its natural curve
+  D.vseg={};for(const [b,ch] of [['Spine','Spine1'],['Spine1','Spine2'],['Spine2','Neck'],['Neck','Head']]){const o=w(ch).sub(w(b));D.vseg[b]=XSPINE[b]?XSPINE[b].clone().normalize().multiplyScalar(o.length()):o;}
+  // how much further forward the natural upper spine carries the neck than that layout (rad, + = forward), seen from Spine1
+  const n1=w('Neck').sub(w('Spine1')),v1=D.vseg.Spine1.clone().add(D.vseg.Spine2);D.thor=Math.atan2(n1.z,n1.y)-Math.atan2(v1.z,v1.y);}
+// lying on the back: the upper back flattens onto the support so the head rests on it (k=.6 puts the back of the head where the
+// Xbot-layout spine had it, within 3 mm; no-op for an Xbot-layout spine)
+function thorFlat(c,k=.6){const B=c.bones,a=-D.thor*.5*k;B.Spine1.quaternion.multiply(_q.setFromAxisAngle(V(1,0,0),a));B.Spine2.quaternion.multiply(_q.setFromAxisAngle(V(1,0,0),a));}
+const XSPINE={Spine:V(0,.101,-.010),Spine1:V(0,.091,-.014),Spine2:V(0,.166,-.025)}; // Xbot's rest directions of these segments
+// spine joints as they would sit on the Xbot-layout spine (the real bones rotate them): for back-shape readings (rounding, arching)
+function vSpine(c){const B=c.bones,q=new THREE.Quaternion(),out={Hips:wpos(B.Hips),Spine:wpos(B.Spine)};let p=out.Spine;
+  for(const [b,ch] of [['Spine','Spine1'],['Spine1','Spine2'],['Spine2','Neck'],['Neck','Head']]){B[b].getWorldQuaternion(q);p=p.clone().add(D.vseg[b].clone().applyQuaternion(q));out[ch]=p;}return out;}
+// front of the shirt at chest height (rest pose, model space): how far the chest stands in front of the shoulder joints decides
+// where a bar or dumbbells touch it (D.chest is that distance plus the bar's radius)
+function chestFront(c,A){let z=-1;for(const m of c.meshes){const n=(m.material&&m.material.name)||'';if(!/^Cloth.*(shirt|tank|top)/i.test(n))continue;
+    const P=m.geometry.attributes.position;for(let i=0;i<P.count;i++){const x=P.getX(i),y=P.getY(i);if(Math.abs(x)<.1&&y>A.y-.25&&y<A.y-.12)z=Math.max(z,P.getZ(i));}}
+  return z>-1?z:A.z+.235*D.s*1.12-.008;}
 function reach(){return Math.sqrt(Math.pow((D.arm+D.fore)*.97,2)-Math.pow(GRIP-D.shx,2));}
 
 const PALM=V(0,-.89,.46).normalize(); // hand-local palm normal at rest (fingers +X left / -X right)
@@ -584,7 +600,7 @@ function walkTick(c,dt){const a=c.act_;const rem=a.L-a.s;
   if(a.land&&a.rem0&&c.cur===wa){walkSync(c,a,1-rm/a.rem0,a.rem0,false);}else play(c,'walk',.3,Math.max(.2,a.v/WALK_STRIDE));
   if(a.s>=a.L-.005){if(a.face!==undefined&&Math.abs(angDiff(a.face,c.heading))>.06){c.act_={kind:'turn',h:a.face,done:a.done,land:a.land};}
     else{c.act_={kind:'idle'};play(c,'idle',.4);a.done&&a.done();}}}
-function turnTick(c,dt){const a=c.act_;if(a.h0===undefined)a.h0=Math.abs(angDiff(a.h,c.heading));const d=angDiff(a.h,c.heading);const st=Math.sign(d)*Math.min(Math.abs(d),dt*(a.land?1.7:2.4));c.heading+=st;place(c);
+function turnTick(c,dt){const a=c.act_;if(a.h0===undefined)a.h0=Math.abs(angDiff(a.h,c.heading));const d=angDiff(a.h,c.heading);const st=Math.sign(d)*Math.min(Math.abs(d),dt*(a.land?3.0:3.4));c.heading+=st;place(c);
   if(a.land)walkSync(c,a,a.h0>1e-3?1-Math.abs(angDiff(a.h,c.heading))/a.h0:1,a.h0*.3,false);else play(c,'walk',.25,.55);if(Math.abs(d)<.03){c.heading=a.h;place(c);c.act_={kind:'idle'};play(c,'idle',.35);a.done&&a.done();}}
 
 // ---- scripted sequences
@@ -609,8 +625,8 @@ function seqTick(c,dt){const a=c.act_;const S=a.steps[a.i];if(!S)return;a.t+=dt;
     // the steps follow the body's eased speed (slow at the start and the stop), so the feet don't swing at full speed while the body stops
     const v=Math.max(.35,6*k*(1-k)/1.5);if(S.land){walkSync(c,a,smooth(k),a.from.distanceTo(a.to)*(S.back?-1:1));if(!a.wk.dfix){a.wk.dfix=1;a.d=Math.max(a.d,Math.abs(a.wk.T-a.wk.t0)*1.5/1.3);}} // (a short landed step is stretched so the clip never runs faster than 1.3x: a quicker step flicks the swinging foot)else play(c,'walk',.25,(S.back?-1:1)*clamp(a.from.distanceTo(a.to)*6*k*(1-k)/a.d/WALK_STRIDE,.3,1.35)); // the clip at the body's speed (feet planted), never hurried past a brisk walkc._ph=(c._ph||0)+dt*(S.back?3:4)*v;
     clipPost(c,dt);if(k>=1){play(c,'idle',.3);nextStep(c);}return;}
-  if(S.turn!==undefined){if(a.h0===undefined)a.h0=Math.abs(angDiff(a.h,c.heading));const d=angDiff(a.h,c.heading);c.heading+=Math.sign(d)*Math.min(Math.abs(d),dt*2.2);place(c);
-    if(S.land)walkSync(c,a,a.h0>1e-3?1-Math.abs(angDiff(a.h,c.heading))/a.h0:1,a.h0*.3);else play(c,'walk',.25,.34);clipPost(c,dt);if(Math.abs(d)<.03){c.heading=a.h;place(c);play(c,'idle',.3);a.h0=undefined;nextStep(c);}return;}
+  if(S.turn!==undefined){if(a.h0===undefined)a.h0=Math.abs(angDiff(a.h,c.heading));const d=angDiff(a.h,c.heading);c.heading+=Math.sign(d)*Math.min(Math.abs(d),dt*3.2);place(c);
+    if(S.land)walkSync(c,a,a.h0>1e-3?1-Math.abs(angDiff(a.h,c.heading))/a.h0:1,a.h0*.3);else play(c,'walk',.25,.7);clipPost(c,dt);if(Math.abs(d)<.03){c.heading=a.h;place(c);play(c,'idle',.3);a.h0=undefined;nextStep(c);}return;}
   const k=clamp(a.t/S.d,0,1);
   if(S.anim){S.anim(c,k);frame(c,a.st);}
   else{S.pose(c,k);frame(c,a.st);const B=snapshot(c);blendTo(c,a.from,B,S.lin?k:ease(k));}
@@ -623,7 +639,7 @@ function seqTick(c,dt){const a=c.act_;const S=a.steps[a.i];if(!S)return;a.t+=dt;
 // character's clip is time-scaled to the same WALK_STRIDE, so the clip played at timeScale v/WALK_STRIDE keeps the feet planted)
 const WALK_STRIDE=0.916; // metres of travel per second of the walk clip (how fast its planted foot moves back)
 const WALK_PASS=[0.438,1.094]; // clip times where the swinging foot passes the planted one
-const WALK_SPEED=1.05; // cruising speed along a path (m/s): the clip then plays at WALK_SPEED/WALK_STRIDE
+const WALK_SPEED=1.3; // cruising speed along a path (m/s): the clip then plays at WALK_SPEED/WALK_STRIDE
 // the pass-phase clip time to finish at, from clip time t0 with A0 clip-seconds of travel ahead: {T, m = how much faster the clip runs}
 // (a hurried clip swings the foot fast, so slowing down is preferred to speeding up, and more than a third faster is never
 // chosen: a stalled clip (a pivot on the spot) is better than a flicked foot)
@@ -651,7 +667,7 @@ function clipFloor(c){const m=footMin(c);if(m<.016){const d=.016-m;c._lift=(c._l
 function lieBody(c,o){let q=qX(o.angle||0).multiply(qLie);
   const hipT=V(0,BENCH_TOP+D.back,HIPS_Z+(o.dz||0));let pos=hipT.clone().sub(D.hips.clone().applyQuaternion(q));
   if(o.hipLift){const Sw=pos.clone().add(D.sh.clone().applyQuaternion(q));q=qX(-o.hipLift).multiply(q);pos=Sw.sub(D.sh.clone().applyQuaternion(q));}
-  c.root.quaternion.copy(q);c.root.position.copy(pos);c._hipT=hipT;resetRest(c);const B=c.bones;
+  c.root.quaternion.copy(q);c.root.position.copy(pos);c._hipT=hipT;resetRest(c);const B=c.bones;thorFlat(c);
   B.Spine1.quaternion.multiply(_q.setFromAxisAngle(V(1,0,0),-.16*.6));
   B.Spine2.quaternion.multiply(_q.setFromAxisAngle(V(1,0,0),-.16*.4+(o.breathe||0)*.02));
   B.Neck.quaternion.multiply(_q.setFromAxisAngle(V(1,0,0),.12+(o.neck||0)));
@@ -1028,7 +1044,7 @@ function cableReach(c,P,i,x,face,frac,y){const s=i===0?1:-1;const car=V();P.car[
 function cableHoldArms(c,i,both){const s=i===0?1:-1,side=i===0?'Left':'Right';if(!both)armsHang(c,0,-s);const T=torsoAxes(c);
   for(const ss of both?[1,-1]:[s]){const sd=sideOf(ss);const ua=V(0,-1,0).addScaledVector(T.L,ss*.2),fa=V(0,-1,0).addScaledVector(T.L,ss*.08).addScaledVector(T.F,.1);armDir(c,sd,ua,fa,T.L.clone().multiplyScalar(-ss),{hd:V(0,-1,0),curl:1});}}
 // turning on the spot by small steps (no walk clip): through the given canonical headings, standing at (x,z); arms(c) places the arms
-function stepTurns(x,z,hs,arms,d=.6){return hs.map(h=>({d,anim:settle(c=>{standPose(c,{x,z,h,arms:arms?'none':undefined});arms&&arms(c);},{step:1,bend:1})}));}
+function stepTurns(x,z,hs,arms,d=.42){return hs.map(h=>({d,anim:settle(c=>{standPose(c,{x,z,h,arms:arms?'none':undefined});arms&&arms(c);},{step:1,bend:1})}));}
 // a few short steps (no walk clip) from (x0,z0) to (x1,z1) facing h
 function shuffleTo(x0,z0,x1,z1,h,arms,n=3,d=.7){const out=[];for(let i=1;i<=n;i++){const x=lerp(x0,x1,i/n),z=lerp(z0,z1,i/n);
   out.push({d,anim:settle(c=>{standPose(c,{x,z,h,arms:arms?'none':undefined});arms&&arms(c);},{step:1,bend:1})});}return out;}
@@ -1536,7 +1552,7 @@ Object.assign(MEAS,{
   elbowTop:{at:'top',get:c=>avg2(s=>elbowAng(c,s)),fmt:v=>v>=160?'arms straight at the top ('+Math.round(v)+'°)':'elbows stay bent at '+Math.round(v)+'°'},
   leanRange:{pick:'range',get:c=>torsoLean(c),fmt:v=>v<10?'torso still (moves '+Math.round(v)+'°)':'torso swings '+Math.round(v)+'° each rep'},
   barNeck:{at:'top',get:(c,x)=>{const z=x.P.bar.position.z,hz=wpos(c.bones.Head).z;return (z-hz)*100;},fmt:v=>v>4?'bar comes down in front of the face':'bar goes behind the head'},
-  lumbar:{pick:'max',get:c=>{const a=V().subVectors(wpos(c.bones.Spine1),wpos(c.bones.Hips)).normalize(),b2=V().subVectors(wpos(c.bones.Neck),wpos(c.bones.Spine2)).normalize();return Math.acos(clamp(a.dot(b2),-1,1))/DEG;},fmt:v=>v<12?'back stays flat':'lower back rounds '+Math.round(v)+'°'},
+  lumbar:{pick:'max',get:c=>{const S=vSpine(c);const a=V().subVectors(S.Spine1,S.Hips).normalize(),b2=V().subVectors(S.Neck,S.Spine2).normalize();return Math.acos(clamp(a.dot(b2),-1,1))/DEG;},fmt:v=>v<12?'back stays flat':'lower back rounds '+Math.round(v)+'°'},
   rowFlare:{at:'top',get:c=>flareDeg(c,'Left'),fmt:v=>v<55?'elbows '+Math.round(v)+'° from the body':'elbows flared to '+Math.round(v)+'°'},
   shoulderRot:{pick:'max',get:c=>{const d=V().subVectors(wpos(c.bones.LeftArm),wpos(c.bones.RightArm));return Math.abs(Math.asin(clamp(d.y/d.length(),-1,1))/DEG);},fmt:v=>v<12?'shoulders square to the floor':'shoulders twist '+Math.round(v)+'°'},
   dbRowFlare:{at:'top',get:c=>flareDeg(c,'Right'),fmt:v=>v<50?'elbow tight to the body ('+Math.round(v)+'°)':'elbow flared to '+Math.round(v)+'°'},
@@ -1685,7 +1701,7 @@ defEx('cableRow',{group:'back',name:'Seated cable row',eq:'Cable',part:'Middle b
   cues:[['Reach slowly.'],['Stretch.'],['Elbows back along the ribs.','Torso still, arms move.'],['Hold one second.']],
   beginner:'3 sets of 10–12. Lean forward and let the stack rest before you let go of the handle.',
   forms:mk({lower:2.0,touch:.3,press:1.0,lock:1.0,prof:'smooth'},{
-    rock:MS('Rocking','Torso rocks forward and back','The torso rocks about 25° forward and back on every pull.','The lower back and momentum move the weight.','You lift heavier stacks without a bigger back.','Torso still. Only the arms move.',{rock:1,meas:'leanRange',warn:'Rocking torso',warnAt:'lowback',cam:'sideFlat'}),
+    rock:MS('Rocking','Torso rocks forward and back','The torso rocks 25–30° forward and back on every pull.','The lower back and momentum move the weight.','You lift heavier stacks without a bigger back.','Torso still. Only the arms move.',{rock:1,meas:'leanRange',warn:'Rocking torso',warnAt:'lowback',cam:'sideFlat'}),
     shrug:MS('Shrugging','Shoulders rise toward the ears','The shoulders rise 5–7 cm toward the ears at the end of the pull.','The upper traps take over from the middle back.','Tight upper traps, little middle-back growth.','Shoulders down, elbows back.',{shrug:1,meas:'shrugRise',warn:'Shoulders shrug',warnAt:'neck',cam:'front',strain:['trapU'],mul:{trapU:2.5}}),
     short:MS('Short pull','Handle stops short of the belly','The handle stops 10–15 cm in front of the belly.','The shoulder blades never squeeze together.','A weaker middle back.','Handle to the belly button.',{shortR:1,meas:'handleBelly',warn:'Stops short',warnAt:'chest',cam:'sideFlat'})})});
 defEx('barRow',{group:'back',name:'Barbell bent-over row',eq:'Barbell',part:'Middle back',station:'platform',entry:'floorBar',kind:'pull',pose:poseBarRow,
@@ -2086,13 +2102,13 @@ function seatCalfSit(c,P,padY,free){setRoot(c,qX(4*DEG),V(0,SCS.seatY+.1*D.s,-12
   for(const [i,s] of [1,-1].entries()){const sd=sideOf(s);legTo(c,sd,ft[i].A,V(0,.4,1));footTo(c,sd,ft[i].toe.clone().add(V(0,0,.05)));}
   const kn=wpos(c.bones.LeftLeg);const y=padY??kn.y+.08;P.padAt(y);const pz=kn.z-.11;P.pad.position.z=pz-P.lever.position.z;P.lever.updateMatrixWorld(true);
   const pw=V();P.pad.getWorldPosition(pw);ST.g.worldToLocal(pw);
-  for(const s of[1,-1]){if(free){const K=wpos(c.bones[sideOf(s)+'Leg']),H=wpos(c.bones[sideOf(s)+'UpLeg']);armTo(c,sideOf(s),H.lerp(K,.6).add(V(s*.07,.05,0)),{hd:V(0,-.4,1),pn:V(-s,-.5,0),pole:V(s*.6,-.3,-.6),curl:.5});}
-    else armTo(c,sideOf(s),pw.clone().add(V(s*.235,0,0)),{hd:V(0,-.3,1),pn:V(-s,0,0),pole:V(s*.5,-.3,-1),curl:.8});}return kn.y+.08;}
+  for(const s of[1,-1]){if(free===true){const K=wpos(c.bones[sideOf(s)+'Leg']),H=wpos(c.bones[sideOf(s)+'UpLeg']);armTo(c,sideOf(s),H.lerp(K,.6).add(V(s*.07,.05,0)),{hd:V(0,-.4,1),pn:V(-s,-.5,0),pole:V(s*.6,-.3,-.6),curl:.5});}
+    else armTo(c,sideOf(s),pw.clone().add(V(s*.235,free==='above'?.08:0,0)),{hd:V(0,-.3,1),pn:V(-s,0,0),pole:V(s*.5,-.3,-1),curl:free==='above'?.3:.8});}return kn.y+.08;}
 const SCS_FEET=()=>calfFeet(null,SCS.stepY,SCS.edgeZ,0).map(f=>({a:f.A,t:f.toe.clone().add(V(0,0,.05)),pole:V(0,.4,1)}));
 const SCS_UP=1.0;
 ENTRY.seatCalf={pre:[.8,-12.1],face:-Math.PI/2,
   enter:(st,e)=>[{walk:[.42,-12.1],d:.7},{turn:0},{d:.45,pose:c=>standPose(c,{x:.42,z:-12.1,h:0}),props:plantFeet(st,standFeet({x:.42,z:-12.1,h:0}))}, // arms settle at the sides before sitting (from a mid-swing arm the hand cut through the frame post)
-    {d:1.0,pose:c=>seatCalfSit(c,st.P,SCS_UP),props:plantFeet(st,SCS_FEET())},
+    {d:.8,pose:c=>seatCalfSit(c,st.P,SCS_UP,'above'),props:plantFeet(st,SCS_FEET())},{d:.4,pose:c=>seatCalfSit(c,st.P,SCS_UP)}, // hands come onto the handles from above
     {d:.9,anim:(c,k)=>{const y=seatCalfSit(c,st.P,SCS_UP);seatCalfSit(c,st.P,lerp(SCS_UP,y,smooth(k)));}},{d:.8,pose:exP(.5,3)},{d:.6,anim:exFrom(.5,1)}],
   leave:(st,e)=>[{d:.8,pose:exP(.5,3)},{d:.9,anim:(c,k)=>{const y=seatCalfSit(c,st.P,SCS_UP);seatCalfSit(c,st.P,lerp(y,SCS_UP,smooth(k)));}},
     {d:.6,pose:c=>seatCalfSit(c,st.P,SCS_UP,true)},{d:.9,pose:c=>standPose(c,{x:.42,z:-12.1,h:Math.PI/2}),props:plantFeet(st,standFeet({x:.42,z:-12.1,h:Math.PI/2}))},{walk:[.8,-12.1],d:.6}]};
@@ -2147,12 +2163,12 @@ defEx('squat',{group:'legs',name:'Back squat',eq:'Barbell',part:'Quads & glutes'
   mus:{quadV:[1,'m'],glute:[1,'m'],quadRF:[.35,'h'],adduct:[.7,'h'],hams:[.3,'h'],erect:[.55,'h'],gastroc:[.25,'h']},
   labels:[['Quads','quadV','m'],['Glutes','glute','m'],['Adductors','adduct','h']],center:V(0,.95,-11.95),cam:'frontQ',coachSpot:{p:[-1.4,-12.6],h:Math.PI/2-.4},
   steps:steps4([['Sit down between the heels','2 sec, brace'],['Hip crease below the knee','depth'],['Drive up','breathe out'],['Stand tall','reset the breath']]),
-  stepText:['Big breath, brace, and sit down between your heels. Knees travel forward and out over the toes; that’s normal.','Hip crease below the top of the knee. Torso about 35° forward, bar over the middle of the foot.','Drive up, chest and hips rising together. Breathe out past the hardest part.','Stand tall with straight legs. Breathe and brace for the next rep.'],
+  stepText:['Big breath, brace, and sit down between your heels. Knees travel forward and out over the toes; that’s normal.','Hip crease below the top of the knee. Torso about 40° forward, bar over the middle of the foot.','Drive up, chest and hips rising together. Breathe out past the hardest part.','Stand tall with straight legs. Breathe and brace for the next rep.'],
   cues:[['Sit between your heels.'],['Below the knee.'],['Drive up, knees out.'],['Stand tall.']],
   beginner:'3 sets of 6–10, starting with the empty 20 kg bar. Set the safety arms at the height of the bar at the bottom.',
   forms:mk({lower:2.0,touch:.25,press:1.1,lock:.8,prof:'smooth'},{
     kneeIn:MS('Knees cave in','Knees drift inward on the way up','Both knees drift about 10 cm inward at the bottom.','The adductors take over and the glutes aren’t driving.','Repeated caving under load is linked with knee pain.','Push the knees out over the toes.',{kneeIn:1,meas:'fppa',warn:'Knees cave',warnAt:'knee',cam:'front',strain:['adduct']}),
-    goodMorning:MS('Good-morning squat','Hips shoot up, chest drops','The hips rise first and the torso tips forward to about 60°.','The load moves from the quads to the lower back.','The lower back limits your squat; the quads get less work.','Chest up; knees and hips rise together.',{goodMorning:1,meas:'torsoBottom',warn:'Chest drops',warnAt:'lowback',cam:'sideHigh',strain:['erect']}),
+    goodMorning:MS('Good-morning squat','Hips shoot up, chest drops','The hips rise first and the torso tips forward past 60°.','The load moves from the quads to the lower back.','The lower back limits your squat; the quads get less work.','Chest up; knees and hips rise together.',{goodMorning:1,meas:'torsoBottom',warn:'Chest drops',warnAt:'lowback',cam:'sideHigh',strain:['erect']}),
     half:MS('Half squat','Stops well above parallel','The squat stops with the thighs well above parallel.','The glutes and adductors miss their hardest range.','Half squats grew the glutes about a third as much in one study.','Sit lower: hips below the knees.',{half:1,meas:'depth',warn:'Too shallow',warnAt:'hips',cam:'sideHigh'})})});
 defEx('rdl',{group:'legs',name:'Romanian deadlift',eq:'Barbell',part:'Hamstrings',station:'platform',entry:'rdlBar',kind:'hinge',pose:poseRDL,
   quip:'A bow so deep your hamstrings applaud.',coachIn:'Lift it once from the floor, then hinge.',
@@ -2211,7 +2227,7 @@ defEx('legCurl',{group:'legs',name:'Lying leg curl',eq:'Machine',part:'Hamstring
   cues:[['Two seconds down.'],['Almost straight.'],['Heels to the bum.'],['Squeeze.']],
   beginner:'3 sets of 10–15. Roller on the ankles, not the calves. The gym has no seated curl, which grows the hamstrings a bit more.',
   forms:mk({lower:2.0,touch:.2,press:1.0,lock:1.0,prof:'smooth'},{
-    hips:MS('Hips lift','Hips rise off the pad','The hips rise off the pad, the hip angle changes about 20°, and the back arches to cheat.','The hip flexors and back do the lift.','Lower-back ache; hamstrings under-loaded.','Hips glued to the pad.',{hips:1,meas:'curlHip',warn:'Hips lift',warnAt:'hips',cam:'sideFlat'}),
+    hips:MS('Hips lift','Hips rise off the pad','The hips rise off the pad, the hip angle changes 20–30°, and the back arches to cheat.','The hip flexors and back do the lift.','Lower-back ache; hamstrings under-loaded.','Hips glued to the pad.',{hips:1,meas:'curlHip',warn:'Hips lift',warnAt:'hips',cam:'sideFlat'}),
     half:MS('Half curl','Heels stop halfway up','The curl stops at about 110° at the knee.','No peak squeeze.','Slower growth.','Heels all the way up.',{half:1,meas:'curlTop',warn:'Stops short',warnAt:'knee',cam:'sideFlat'}),
     drop:MS('Dropping the weight','Roller drops in a blink','The roller drops in under half a second and bounces.','Half the training effect is lost.','Fewer gains and bruised ankles.','Two seconds on the way down.',{lower:.45,touch:.05,meas:'lowerTime',warn:'Weight drops',warnAt:'knee',cam:'sideFlat'})})});
 defEx('hipThrust',{group:'legs',name:'Barbell hip thrust',eq:'Barbell',part:'Glutes',station:'hipThrust',entry:'hipThrust',kind:'raise',pose:poseHipThrust,
@@ -2225,7 +2241,7 @@ defEx('hipThrust',{group:'legs',name:'Barbell hip thrust',eq:'Barbell',part:'Glu
   forms:mk({lower:1.0,touch:.3,press:1.0,lock:1.0,prof:'smooth'},{
     arch:MS('Arched lower back','Finishes by arching the back','The hips go past level and the lower back arches, ribs flared, head dropped back.','The lower back, not the glutes, closes the last part.','Lower-back ache, and the glutes never fully squeeze.','Ribs down, squeeze, no arch.',{arch:1,meas:'hipTop',warn:'Back arches',warnAt:'lowback',cam:'sideFlat',strain:['erect']}),
     far:MS('Feet too far out','Shins lean forward at the top','The feet are too far out, so the shins lean forward at the top.','The hamstrings take over.','Hamstring cramps and less glute work.','Shins straight up at the top.',{far:1,meas:'shinTop',warn:'Feet too far',warnAt:'knee',cam:'sideFlat',mul:{hams:1.6,glute:.8}}),
-    half:MS('Half thrust','Hips stop below level','The hips stop well below level, at a hip angle of about 140°.','The glute’s hardest range, full extension, is skipped.','Less growth.','Hips all the way up.',{half:1,meas:'hipTop',warn:'Stops short',warnAt:'hips',cam:'sideFlat'})})});
+    half:MS('Half thrust','Hips stop below level','The hips stop well below level, at a hip angle of about 135°.','The glute’s hardest range, full extension, is skipped.','Less growth.','Hips all the way up.',{half:1,meas:'hipTop',warn:'Stops short',warnAt:'hips',cam:'sideFlat'})})});
 defEx('standCalf',{group:'legs',name:'Standing calf raise',eq:'Machine',part:'Calves',station:'standCalf',entry:'standCalf',kind:'raise',pose:poseStandCalf,
   quip:'Tiptoes, but make it heavy.',
   mus:{gastroc:[1,'m'],soleus:[.9,'m']},
@@ -2345,7 +2361,7 @@ Object.assign(MEAS,{
   wristBack:{at:'bottom',get:c=>{const B=c.bones;const fa=V().subVectors(wpos(B.LeftHand),wpos(B.LeftForeArm)).normalize(),hd=handFrame(c,'Left').hd;return Math.acos(clamp(fa.dot(hd),-1,1))/DEG;},fmt:v=>v<25?'wrists stacked over the elbows':'wrists bent back '+Math.round(v)+'°'},
   pressBottom:{at:'bottom',get:c=>avg2(s=>elbowAng(c,s)),fmt:v=>v<=100?'dumbbells down to ear height (elbows '+Math.round(v)+'°)':'stops at the forehead (elbows '+Math.round(v)+'°)'},
   elbowFwd:{at:'bottom',get:c=>{const T=torsoAxes(c);return avg2(s=>{const d=V().subVectors(wpos(c.bones[s+'ForeArm']),wpos(c.bones[s+'Arm'])).normalize();return Math.asin(clamp(d.dot(T.F),-1,1))/DEG;});},fmt:v=>v>12?'elbows slightly in front ('+Math.round(v)+'°)':'elbows pinned back in a T'},
-  archPad:{pick:'max',get:c=>{const u=V().subVectors(wpos(c.bones.Spine2),wpos(c.bones.Hips)).normalize();const b=V(0,Math.sin(UPRIGHT*DEG),-Math.cos(UPRIGHT*DEG));return Math.acos(clamp(u.dot(b),-1,1))/DEG;},fmt:v=>v<10?'back flat on the pad':'lower back arches '+Math.round(v)+'° off the pad'},
+  archPad:{pick:'max',get:c=>{const S=vSpine(c);const u=V().subVectors(S.Spine2,S.Hips).normalize();const b=V(0,Math.sin(UPRIGHT*DEG),-Math.cos(UPRIGHT*DEG));return Math.acos(clamp(u.dot(b),-1,1))/DEG;},fmt:v=>v<10?'back flat on the pad':'lower back arches '+Math.round(v)+'° off the pad'},
   handElbow:{at:'top',get:c=>(wpos(c.bones.LeftHand).y-wpos(c.bones.LeftForeArm).y)*100,fmt:v=>v<=1?'elbows lead, hands just below':'hands '+Math.round(v)+' cm above the elbows'},
   flexTop:{at:'top',get:c=>{const T=torsoAxes(c);const d=V().subVectors(wpos(c.bones.LeftForeArm),wpos(c.bones.LeftArm)).normalize();return Math.acos(clamp(-d.dot(T.U),-1,1))/DEG;},fmt:v=>v<=100?'stops at shoulder height ('+Math.round(v)+'°)':'arms go up to '+Math.round(v)+'°'},
   sideLean:{pick:'max',get:c=>{const u=V().subVectors(wpos(c.bones.Neck),wpos(c.bones.Hips)).normalize();const L=pelvisAxes(c).L;return Math.abs(Math.asin(clamp(u.dot(L),-1,1))/DEG);},fmt:v=>v<10?'body still ('+Math.round(v)+'°)':'leaning '+Math.round(v)+'° into the tower'},
@@ -2691,7 +2707,7 @@ Object.assign(MEAS,{
   ohArm:{at:'bottom',get:c=>avg2(s=>upperArmFlex(c,s)),fmt:v=>v>=152?'upper arms beside the ears ('+Math.round(v)+'°)':'upper arms drop forward to '+Math.round(v)+'°'},
   kbArm:{at:'top',get:c=>{const d=V().subVectors(wpos(c.bones.RightForeArm),wpos(c.bones.RightArm)).normalize();return Math.asin(clamp(d.y,-1,1))/DEG;},fmt:v=>v>-15?'upper arm level with the back':'upper arm points '+Math.round(-v)+'° down'},
   leanMax:{pick:'max',get:c=>torsoLean(c),fmt:v=>v<22?'standing tall ('+Math.round(v)+'° lean)':'leaning '+Math.round(v)+'° over the stack'},
-  archBack:{pick:'max',get:c=>{const T=torsoAxes(c);const a=V().subVectors(wpos(c.bones.Spine1),wpos(c.bones.Hips)).normalize(),b=V().subVectors(wpos(c.bones.Neck),wpos(c.bones.Spine2)).normalize();
+  archBack:{pick:'max',get:c=>{const S=vSpine(c);const T=torsoAxes(c);const a=V().subVectors(S.Spine1,S.Hips).normalize(),b=V().subVectors(S.Neck,S.Spine2).normalize();
     return Math.atan2(V().crossVectors(a,b).dot(T.L),a.dot(b))/DEG*-1;},fmt:v=>v<13?'back stays flat':'lower back arches '+Math.round(v)+'°'},
   dipFlare:{at:'bottom',get:c=>{const T=torsoAxes(c);return avg2(s=>{const d=V().subVectors(wpos(c.bones[s+'ForeArm']),wpos(c.bones[s+'Arm'])).normalize();return Math.asin(Math.abs(clamp(d.dot(T.L),-1,1)))/DEG;});},fmt:v=>v<32?'elbows point back ('+Math.round(v)+'° out)':'elbows flare '+Math.round(v)+'° out'},
   ankleSwing:{pick:'range',get:c=>wpos(c.bones.LeftFoot).z*100,fmt:v=>v<6?'legs quiet':'legs swing '+Math.round(v)+' cm'},
@@ -2700,7 +2716,7 @@ Object.assign(MEAS,{
 // ---- getting on and off
 // turn on the spot (canonical x, z) from heading h0 to h1 by stepping round: up to 60° per step, the feet lifting one after the
 // other, instead of the walk clip swinging them; pf(c,{x,z,h}) is the standing pose (with whatever the hands are holding)
-function turnSteps(x,z,h0,h1,pf=standPose,d=.7){const dh=angDiff(h1,h0);const n=Math.max(1,Math.ceil(Math.abs(dh)/(60*DEG)-1e-3));const out=[];
+function turnSteps(x,z,h0,h1,pf=standPose,d=.45){const dh=angDiff(h1,h0);const n=Math.max(1,Math.ceil(Math.abs(dh)/(100*DEG)-1e-3));const out=[];
   for(let i=1;i<=n;i++){const h=h0+dh*i/n;out.push({d,anim:settle(c=>pf(c,{x,z,h}),{step:1})});}return out;}
 const standBarThighs=(c,o)=>{standPose(c,{...o,arms:'none'});holdBarThighs(c);};
 ENTRY.barStand={land:1,pre:[0,-12.6],face:0,enter:(st,e)=>[{walk:[0,-12],land:1,d:.8},{call:c=>{c.carry=null;}},{d:.8,pose:exP(0,1)},{d:1.0,anim:exFrom(0,1)}],
@@ -2868,7 +2884,7 @@ defEx('cgBench',{group:'triceps',name:'Close-grip bench press',eq:'Barbell',part
   beginner:'3 sets of 6–10, starting with the empty bar. Hands shoulder-width, not touching.',
   forms:mk(base({touchZ:.17,flare:26,grip:.19}),{
     narrow:MS('Grip too narrow','Hands almost touching','The hands are under 25 cm apart, wrists bent back, elbows flaring to make room.','Wrist and elbow strain, and less weight.','Wrist and elbow tendon pain.','Shoulder width, not thumbs.',{grip:.105,flare:48,meas:'handGap',warn:'Hands too close',warnAt:'wrist',cam:'feet'}),
-    flare:MS('Elbows flared','Elbows out, bar to the nipples','The elbows flare to 60–90° and the bar drifts up to the nipple line.','The chest and front shoulders take the load.','Shoulder stress; triceps undertrained.','Elbows brush the ribs.',{flare:78,touchZ:.04,meas:'flare',warn:'Elbows flared',warnAt:'shoulder',cam:'above',strain:['deltF'],mul:{pecL:1.4,triLat:.7}}),
+    flare:MS('Elbows flared','Elbows out, bar to the nipples','The elbows flare to 55–90° and the bar drifts up to the nipple line.','The chest and front shoulders take the load.','Shoulder stress; triceps undertrained.','Elbows brush the ribs.',{flare:78,touchZ:.04,meas:'flare',warn:'Elbows flared',warnAt:'shoulder',cam:'above',strain:['deltF'],mul:{pecL:1.4,triLat:.7}}),
     hips:MS('Hips lift','Hips rise off the bench','The bottom lifts off the bench as you press.','Shorter range and the lower back arches under load.','Lower-back strain.','Bottom down, drive the floor.',{hips:1,meas:'hips',warn:'Hips off the bench',warnAt:'hips',cam:'feetLow'})})});
 defEx('pushdown',{group:'triceps',name:'Rope pushdown',eq:'Cable',part:'Triceps (outer heads)',station:'cableCol',entry:'cableColA',pulley:2.0,att:'rope',kind:'curl',pose:posePushdown,
   quip:'Elbows glued. Only the forearms are allowed to move.',mus:TRI_MUS,
@@ -2958,7 +2974,7 @@ function poseSidePlank(c,F,b,u,P){const br=breatheOf(b)*.004;const sag=F.down?-.
   c._S=S;c._T=toe;c._H=H;c._E=E;return u;}
 // dead bug: on the back, head toward −z; opposite arm and leg reach (sides alternate every rep)
 function poseDeadBug(c,F,b,u,P){const k=smooth(1-clamp(u,0,1));const side=rep%2?1:-1;const arch=F.arch?.6*k:0,lift=F.head?.3:0;
-  const H=V(0,.12,-11.85);setRoot(c,rootFromAxes(V(0,arch*.55,-1).normalize(),V(0,1,arch*.55).normalize()),H);resetRest(c);
+  const H=V(0,.12,-11.85);setRoot(c,rootFromAxes(V(0,arch*.55,-1).normalize(),V(0,1,arch*.55).normalize()),H);resetRest(c);thorFlat(c);
   spineBend(c,-arch*.9+lift*.45,{neck:lift*1.4,head:lift*.3});clav(c,{shrug:.05});c.root.updateMatrixWorld(true);
   const T=torsoAxes(c);
   for(const s of[1,-1]){const sd=sideOf(s);const reachLeg=s===-side;const reachArm=s===side;
@@ -3020,7 +3036,7 @@ Object.assign(MEAS,{
   sideSag:{pick:'abs',get:c=>{const S=c._S,T=c._T.clone().add(V(0,.06,0)),H=wpos(c.bones.Hips);const t=clamp((H.z-S.z)/(T.z-S.z),0,1);return (lerp(S.y,T.y,t)-H.y)*100;},fmt:v=>Math.abs(v)<3?'hips up, body straight':'hips sag '+Math.round(v)+' cm'},
   pelvisRoll:{pick:'max',get:c=>{const L=pelvisAxes(c).L;return Math.abs(Math.asin(clamp(L.x,-1,1))/DEG);},fmt:v=>v<10?'hips stacked':'hips roll '+Math.round(v)+'° toward the floor'},
   elbowUnder:{pick:'max',get:c=>c._E?Math.abs(c._E.z-wpos(c.bones.RightArm).z)*100:0,fmt:v=>v<4?'elbow under the shoulder':'elbow '+Math.round(v)+' cm out of line'},
-  backGap:{pick:'max',get:c=>Math.max(0,(wpos(c.bones.Spine1).y-wpos(c.bones.Hips).y-.0)*100+0),fmt:v=>v<3?'lower back stays down':'lower back lifts '+Math.round(v)+' cm'},
+  backGap:{pick:'max',get:c=>{const S=vSpine(c);return Math.max(0,(S.Spine1.y-S.Hips.y-.0)*100+0);},fmt:v=>v<3?'lower back stays down':'lower back lifts '+Math.round(v)+' cm'},
   moveTime:{get:(c,x)=>x.F.lower,fmt:v=>v>=1.8?'each reach takes '+v.toFixed(1)+' s':'limbs swing in '+v.toFixed(1)+' s'},
   headLift:{pick:'max',get:c=>{const h=wpos(c.bones.Head),n=wpos(c.bones.Neck);const skull=h.clone().addScaledVector(h.clone().sub(n).normalize(),.09*D.s);return Math.max(0,(skull.y-.1*D.s)*100);},fmt:v=>v<4?'head rests on the mat':'head lifts '+Math.round(v)+' cm'},
   hipSway:{pick:'range',get:c=>wpos(c.bones.Hips).z*100,fmt:v=>v<5?'no swinging':'hips swing '+Math.round(v)+' cm'},
@@ -3031,10 +3047,10 @@ Object.assign(MEAS,{
   sideLean2:{pick:'max',get:c=>{const u=V().subVectors(wpos(c.bones.Neck),wpos(c.bones.Hips)).normalize();return Math.abs(Math.asin(clamp(u.dot(pelvisAxes(c).L),-1,1))/DEG);},fmt:v=>v<6?'standing tall':'leaning '+Math.round(v)+'° away'},
   handMid:{at:'top',get:c=>{const T=torsoAxes(c);return Math.abs(V().subVectors(gripPoint(c,'Left').add(gripPoint(c,'Right')).multiplyScalar(.5),c._st).dot(T.L))*100;},fmt:v=>v<6?'hands straight out from the chest':'hands drift '+Math.round(v)+' cm toward the tower'},
   wheelHip:{at:'bottom',get:c=>c._hipAng||0,fmt:v=>v>=145?'hips open to '+Math.round(v)+'°':'hips stay back ('+Math.round(v)+'°)'},
-  wheelArch:{at:'bottom',get:c=>{const a=V().subVectors(wpos(c.bones.Spine1),wpos(c.bones.Hips)).normalize(),b2=V().subVectors(wpos(c.bones.Neck),wpos(c.bones.Spine2)).normalize();return Math.acos(clamp(a.dot(b2),-1,1))/DEG;},fmt:v=>v<12?'back stays flat at full reach':'lower back arches '+Math.round(v)+'°'},
+  wheelArch:{at:'bottom',get:c=>{const S=vSpine(c);const a=V().subVectors(S.Spine1,S.Hips).normalize(),b2=V().subVectors(S.Neck,S.Spine2).normalize();return Math.acos(clamp(a.dot(b2),-1,1))/DEG;},fmt:v=>v<12?'back stays flat at full reach':'lower back arches '+Math.round(v)+'°'},
   wheelElbow:{pick:'min',get:c=>avg2(s=>elbowAng(c,s)),fmt:v=>v>=165?'arms stay straight':'elbows bend to '+Math.round(v)+'°'},
 });
-MEAS.backGap.get=c=>{const sp=wpos(c.bones.Spine1).y,h=wpos(c.bones.Hips).y;return Math.max(0,(sp-h-.01)*100);};
+MEAS.backGap.get=c=>{const S=vSpine(c),sp=S.Spine1.y,h=S.Hips.y;return Math.max(0,(sp-h-.01)*100);};
 
 // ---- getting on and off (every change of pose is a settle: the feet stay on the floor while the body moves)
 // sitting on the mat facing −z, legs out, hands by the hips (between kneeling and lying on the side)
@@ -3050,6 +3066,9 @@ function lieBack(c){setRoot(c,qX(0),V(0,.11,-11.83));resetRest(c);c.root.updateM
 function wheelReach(c){kneelPose(c,{z:-11.1,lean:100,arms:'none'});
   armTo(c,'Right',wpos(c.bones.RightLeg).add(V(.02,.07,-.03)),{hd:V(0,-.4,-1),pn:V(0,-1,0),pole:V(.5,-.3,.6),curl:.4});
   armTo(c,'Left',WHEEL_HOME.clone().add(V(-.09,0,0)),{hd:V(0,-.3,-1),pn:V(0,-1,.3),pole:V(-.4,.3,1)});}
+// on the way between the knee and the handle the free hand comes over the wheel from above (a straight blend swings it down
+// past the floor)
+function wheelReady(c){exP(1,3)(c);armTo(c,'Right',gripPoint(c,'Left').add(V(-.1,.1,.06)),{hd:V(0,-.3,-1),pn:V(0,-1,.3),pole:V(.4,.3,1),curl:.3});}
 // the wheel rides in the left hand between its parking spot and the start of the rollout
 function wheelFollow(c){ST.P.wheel.position.copy(toC(ST,gripPoint(c,'Left')).add(V(.09,0,0)));}
 // standing in the captain's chair with the elbows raised in front, forearms up, so they clear the handles
@@ -3065,8 +3084,8 @@ ENTRY.matSide={...MAT,enter:(st,e)=>[{walk:[0,-10.85],land:1,d:.6},{d:1.0,anim:s
   leave:(st,e)=>[{d:1.0,anim:settle(c=>poseSidePlank(c,{down:1},{phase:3,k:0},1,st.P))},{d:1.1,anim:settle(sitMat,{arc:V(.25,.08,0)})},{d:1.2,anim:settle(c=>kneelPose(c,{z:-11.6}),{arc:V(.3,.1,0)})},{d:1.1,anim:settle(c=>standPose(c,{z:-11.1,h:Math.PI}))},{walk:[0,-10.45],land:1,d:.9}]};
 ENTRY.matBack={...MAT,enter:(st,e)=>[{walk:[0,-11.35],land:1,d:.9},...turnSteps(0,-11.35,Math.PI,0),{d:1.1,anim:settle(sitMatBack)},{d:1.0,anim:settle(lieBack)},{d:1.2,anim:settle(exP(1,3),{kneeUp:1})}],
   leave:(st,e)=>[{d:1.6,anim:settle(lieBack,{kneeUp:1})},{d:1.0,anim:settle(sitMatBack)},{d:1.1,anim:settle(c=>standPose(c,{z:-11.35}))},...turnSteps(0,-11.35,0,Math.PI),{walk:[0,-10.45],land:1,d:.9}]};
-ENTRY.matWheel={...MAT,enter:(st,e)=>[{walk:[0,-10.85],land:1,d:.6},{d:1.0,anim:settle(c=>kneelPose(c,{z:-11.1}))},{d:1.0,anim:settle(wheelReach)},{d:1.0,anim:settle(exP(1,3)),props:wheelFollow}],
-  leave:(st,e)=>[{d:.9,pose:exP(1,3),props:wheelFollow},{d:1.0,anim:settle(wheelReach),props:wheelFollow},{d:.9,anim:settle(c=>kneelPose(c,{z:-11.1}))},{call:()=>st.P.wheel.position.copy(WHEEL_HOME)},{d:1.0,anim:settle(c=>standPose(c,{z:-10.85,h:Math.PI}))},{walk:[0,-10.45],land:1,d:.6}]};
+ENTRY.matWheel={...MAT,enter:(st,e)=>[{walk:[0,-10.85],land:1,d:.6},{d:1.0,anim:settle(c=>kneelPose(c,{z:-11.1}))},{d:1.0,anim:settle(wheelReach)},{d:1.0,anim:settle(wheelReady),props:wheelFollow},{d:.6,anim:settle(exP(1,3)),props:wheelFollow}],
+  leave:(st,e)=>[{d:.9,pose:exP(1,3),props:wheelFollow},{d:.6,anim:settle(wheelReady),props:wheelFollow},{d:1.0,anim:settle(wheelReach),props:wheelFollow},{d:.9,anim:settle(c=>kneelPose(c,{z:-11.1}))},{call:()=>st.P.wheel.position.copy(WHEEL_HOME)},{d:1.0,anim:settle(c=>standPose(c,{z:-10.85,h:Math.PI}))},{walk:[0,-10.45],land:1,d:.6}]};
 ENTRY.chair={land:1,pre:[0,-10.8],face:Math.PI,
   enter:(st,e)=>[...turnSteps(0,-10.8,Math.PI,0),{walk:[0,-11.3],back:true,land:1,d:1.4},{d:.6,anim:settle(c=>standPose(c,{z:-11.3,armOut:.6}))},...shuffle(-11.3,-12.2),{d:1.0,anim:settle(chairArmsUp)},{d:.7,anim:settle(chairArmsOn)},{d:.7,anim:settle(exP(0,1))},{d:1.3,anim:exFrom(0,1)}],
   leave:(st,e)=>[{d:1.4,pose:exP(0,1)},{d:.8,anim:settle(chairArmsOn)},{d:1.0,anim:settle(chairArmsUp)},{d:1.0,anim:settle(c=>standPose(c,{z:-12.2,armOut:.6}))},...shuffle(-12.2,-11.3),{walk:[0,-10.8],land:1,d:1.4}]};
@@ -3725,7 +3744,7 @@ function probeFrame(){PROBE.t+=1/30;const tag=flow+(hero.act_&&hero.act_.kind===
   const now={b:pts.slice(0,PROBE_BONES.length).map(x=>x[1].clone()),p:PROBE.props.map(o=>o.getWorldPosition(V()))};
   const walking=hero.act_&&(hero.act_.kind==='walk'||hero.act_.kind==='turn'||(hero.act_.kind==='seq'&&hero.act_.steps&&hero.act_.steps[hero.act_.i]&&hero.act_.steps[hero.act_.i].walk));
   if(PROBE.last){now.b.forEach((p,i)=>{const n=PROBE_BONES[i];const lim=walking?(/Foot|Toe|Leg|Hand/.test(n)?.2:.12):.09;const d=p.distanceTo(PROBE.last.b[i]);if(d>lim)out.push(['boneJump',n,d.toFixed(3)]);});
-    now.p.forEach((p,i)=>{const d=p.distanceTo(PROBE.last.p[i]);if(d>.07)out.push(['propJump',PROBE.props[i].userData.name||('prop'+i),d.toFixed(3)]);});}
+    now.p.forEach((p,i)=>{const d=p.distanceTo(PROBE.last.p[i]);if(d>(walking?.1:.07))out.push(['propJump',PROBE.props[i].userData.name||('prop'+i),d.toFixed(3)]);});}
   PROBE.last=now;for(const x of out)PROBE.issues.push([PROBE.t.toFixed(2),tag,...x]);}
 window.__probe={init:probeInit,run:(sec)=>{const n=Math.round(sec*30);for(let i=0;i<n;i++){update(1/30);probeFrame();}window.__dirty=true;const r=PROBE.issues;PROBE.issues=[];return r;},reset:()=>{PROBE.last=null;}};
 

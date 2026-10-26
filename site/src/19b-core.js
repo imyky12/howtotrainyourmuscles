@@ -25,7 +25,7 @@ function poseSidePlank(c,F,b,u,P){const br=breatheOf(b)*.004;const sag=F.down?-.
   c._S=S;c._T=toe;c._H=H;c._E=E;return u;}
 // dead bug: on the back, head toward −z; opposite arm and leg reach (sides alternate every rep)
 function poseDeadBug(c,F,b,u,P){const k=smooth(1-clamp(u,0,1));const side=rep%2?1:-1;const arch=F.arch?.6*k:0,lift=F.head?.3:0;
-  const H=V(0,.12,-11.85);setRoot(c,rootFromAxes(V(0,arch*.55,-1).normalize(),V(0,1,arch*.55).normalize()),H);resetRest(c);
+  const H=V(0,.12,-11.85);setRoot(c,rootFromAxes(V(0,arch*.55,-1).normalize(),V(0,1,arch*.55).normalize()),H);resetRest(c);thorFlat(c);
   spineBend(c,-arch*.9+lift*.45,{neck:lift*1.4,head:lift*.3});clav(c,{shrug:.05});c.root.updateMatrixWorld(true);
   const T=torsoAxes(c);
   for(const s of[1,-1]){const sd=sideOf(s);const reachLeg=s===-side;const reachArm=s===side;
@@ -87,7 +87,7 @@ Object.assign(MEAS,{
   sideSag:{pick:'abs',get:c=>{const S=c._S,T=c._T.clone().add(V(0,.06,0)),H=wpos(c.bones.Hips);const t=clamp((H.z-S.z)/(T.z-S.z),0,1);return (lerp(S.y,T.y,t)-H.y)*100;},fmt:v=>Math.abs(v)<3?'hips up, body straight':'hips sag '+Math.round(v)+' cm'},
   pelvisRoll:{pick:'max',get:c=>{const L=pelvisAxes(c).L;return Math.abs(Math.asin(clamp(L.x,-1,1))/DEG);},fmt:v=>v<10?'hips stacked':'hips roll '+Math.round(v)+'° toward the floor'},
   elbowUnder:{pick:'max',get:c=>c._E?Math.abs(c._E.z-wpos(c.bones.RightArm).z)*100:0,fmt:v=>v<4?'elbow under the shoulder':'elbow '+Math.round(v)+' cm out of line'},
-  backGap:{pick:'max',get:c=>Math.max(0,(wpos(c.bones.Spine1).y-wpos(c.bones.Hips).y-.0)*100+0),fmt:v=>v<3?'lower back stays down':'lower back lifts '+Math.round(v)+' cm'},
+  backGap:{pick:'max',get:c=>{const S=vSpine(c);return Math.max(0,(S.Spine1.y-S.Hips.y-.0)*100+0);},fmt:v=>v<3?'lower back stays down':'lower back lifts '+Math.round(v)+' cm'},
   moveTime:{get:(c,x)=>x.F.lower,fmt:v=>v>=1.8?'each reach takes '+v.toFixed(1)+' s':'limbs swing in '+v.toFixed(1)+' s'},
   headLift:{pick:'max',get:c=>{const h=wpos(c.bones.Head),n=wpos(c.bones.Neck);const skull=h.clone().addScaledVector(h.clone().sub(n).normalize(),.09*D.s);return Math.max(0,(skull.y-.1*D.s)*100);},fmt:v=>v<4?'head rests on the mat':'head lifts '+Math.round(v)+' cm'},
   hipSway:{pick:'range',get:c=>wpos(c.bones.Hips).z*100,fmt:v=>v<5?'no swinging':'hips swing '+Math.round(v)+' cm'},
@@ -98,10 +98,10 @@ Object.assign(MEAS,{
   sideLean2:{pick:'max',get:c=>{const u=V().subVectors(wpos(c.bones.Neck),wpos(c.bones.Hips)).normalize();return Math.abs(Math.asin(clamp(u.dot(pelvisAxes(c).L),-1,1))/DEG);},fmt:v=>v<6?'standing tall':'leaning '+Math.round(v)+'° away'},
   handMid:{at:'top',get:c=>{const T=torsoAxes(c);return Math.abs(V().subVectors(gripPoint(c,'Left').add(gripPoint(c,'Right')).multiplyScalar(.5),c._st).dot(T.L))*100;},fmt:v=>v<6?'hands straight out from the chest':'hands drift '+Math.round(v)+' cm toward the tower'},
   wheelHip:{at:'bottom',get:c=>c._hipAng||0,fmt:v=>v>=145?'hips open to '+Math.round(v)+'°':'hips stay back ('+Math.round(v)+'°)'},
-  wheelArch:{at:'bottom',get:c=>{const a=V().subVectors(wpos(c.bones.Spine1),wpos(c.bones.Hips)).normalize(),b2=V().subVectors(wpos(c.bones.Neck),wpos(c.bones.Spine2)).normalize();return Math.acos(clamp(a.dot(b2),-1,1))/DEG;},fmt:v=>v<12?'back stays flat at full reach':'lower back arches '+Math.round(v)+'°'},
+  wheelArch:{at:'bottom',get:c=>{const S=vSpine(c);const a=V().subVectors(S.Spine1,S.Hips).normalize(),b2=V().subVectors(S.Neck,S.Spine2).normalize();return Math.acos(clamp(a.dot(b2),-1,1))/DEG;},fmt:v=>v<12?'back stays flat at full reach':'lower back arches '+Math.round(v)+'°'},
   wheelElbow:{pick:'min',get:c=>avg2(s=>elbowAng(c,s)),fmt:v=>v>=165?'arms stay straight':'elbows bend to '+Math.round(v)+'°'},
 });
-MEAS.backGap.get=c=>{const sp=wpos(c.bones.Spine1).y,h=wpos(c.bones.Hips).y;return Math.max(0,(sp-h-.01)*100);};
+MEAS.backGap.get=c=>{const S=vSpine(c),sp=S.Spine1.y,h=S.Hips.y;return Math.max(0,(sp-h-.01)*100);};
 
 // ---- getting on and off (every change of pose is a settle: the feet stay on the floor while the body moves)
 // sitting on the mat facing −z, legs out, hands by the hips (between kneeling and lying on the side)
@@ -117,6 +117,9 @@ function lieBack(c){setRoot(c,qX(0),V(0,.11,-11.83));resetRest(c);c.root.updateM
 function wheelReach(c){kneelPose(c,{z:-11.1,lean:100,arms:'none'});
   armTo(c,'Right',wpos(c.bones.RightLeg).add(V(.02,.07,-.03)),{hd:V(0,-.4,-1),pn:V(0,-1,0),pole:V(.5,-.3,.6),curl:.4});
   armTo(c,'Left',WHEEL_HOME.clone().add(V(-.09,0,0)),{hd:V(0,-.3,-1),pn:V(0,-1,.3),pole:V(-.4,.3,1)});}
+// on the way between the knee and the handle the free hand comes over the wheel from above (a straight blend swings it down
+// past the floor)
+function wheelReady(c){exP(1,3)(c);armTo(c,'Right',gripPoint(c,'Left').add(V(-.1,.1,.06)),{hd:V(0,-.3,-1),pn:V(0,-1,.3),pole:V(.4,.3,1),curl:.3});}
 // the wheel rides in the left hand between its parking spot and the start of the rollout
 function wheelFollow(c){ST.P.wheel.position.copy(toC(ST,gripPoint(c,'Left')).add(V(.09,0,0)));}
 // standing in the captain's chair with the elbows raised in front, forearms up, so they clear the handles
@@ -132,8 +135,8 @@ ENTRY.matSide={...MAT,enter:(st,e)=>[{walk:[0,-10.85],land:1,d:.6},{d:1.0,anim:s
   leave:(st,e)=>[{d:1.0,anim:settle(c=>poseSidePlank(c,{down:1},{phase:3,k:0},1,st.P))},{d:1.1,anim:settle(sitMat,{arc:V(.25,.08,0)})},{d:1.2,anim:settle(c=>kneelPose(c,{z:-11.6}),{arc:V(.3,.1,0)})},{d:1.1,anim:settle(c=>standPose(c,{z:-11.1,h:Math.PI}))},{walk:[0,-10.45],land:1,d:.9}]};
 ENTRY.matBack={...MAT,enter:(st,e)=>[{walk:[0,-11.35],land:1,d:.9},...turnSteps(0,-11.35,Math.PI,0),{d:1.1,anim:settle(sitMatBack)},{d:1.0,anim:settle(lieBack)},{d:1.2,anim:settle(exP(1,3),{kneeUp:1})}],
   leave:(st,e)=>[{d:1.6,anim:settle(lieBack,{kneeUp:1})},{d:1.0,anim:settle(sitMatBack)},{d:1.1,anim:settle(c=>standPose(c,{z:-11.35}))},...turnSteps(0,-11.35,0,Math.PI),{walk:[0,-10.45],land:1,d:.9}]};
-ENTRY.matWheel={...MAT,enter:(st,e)=>[{walk:[0,-10.85],land:1,d:.6},{d:1.0,anim:settle(c=>kneelPose(c,{z:-11.1}))},{d:1.0,anim:settle(wheelReach)},{d:1.0,anim:settle(exP(1,3)),props:wheelFollow}],
-  leave:(st,e)=>[{d:.9,pose:exP(1,3),props:wheelFollow},{d:1.0,anim:settle(wheelReach),props:wheelFollow},{d:.9,anim:settle(c=>kneelPose(c,{z:-11.1}))},{call:()=>st.P.wheel.position.copy(WHEEL_HOME)},{d:1.0,anim:settle(c=>standPose(c,{z:-10.85,h:Math.PI}))},{walk:[0,-10.45],land:1,d:.6}]};
+ENTRY.matWheel={...MAT,enter:(st,e)=>[{walk:[0,-10.85],land:1,d:.6},{d:1.0,anim:settle(c=>kneelPose(c,{z:-11.1}))},{d:1.0,anim:settle(wheelReach)},{d:1.0,anim:settle(wheelReady),props:wheelFollow},{d:.6,anim:settle(exP(1,3)),props:wheelFollow}],
+  leave:(st,e)=>[{d:.9,pose:exP(1,3),props:wheelFollow},{d:.6,anim:settle(wheelReady),props:wheelFollow},{d:1.0,anim:settle(wheelReach),props:wheelFollow},{d:.9,anim:settle(c=>kneelPose(c,{z:-11.1}))},{call:()=>st.P.wheel.position.copy(WHEEL_HOME)},{d:1.0,anim:settle(c=>standPose(c,{z:-10.85,h:Math.PI}))},{walk:[0,-10.45],land:1,d:.6}]};
 ENTRY.chair={land:1,pre:[0,-10.8],face:Math.PI,
   enter:(st,e)=>[...turnSteps(0,-10.8,Math.PI,0),{walk:[0,-11.3],back:true,land:1,d:1.4},{d:.6,anim:settle(c=>standPose(c,{z:-11.3,armOut:.6}))},...shuffle(-11.3,-12.2),{d:1.0,anim:settle(chairArmsUp)},{d:.7,anim:settle(chairArmsOn)},{d:.7,anim:settle(exP(0,1))},{d:1.3,anim:exFrom(0,1)}],
   leave:(st,e)=>[{d:1.4,pose:exP(0,1)},{d:.8,anim:settle(chairArmsOn)},{d:1.0,anim:settle(chairArmsUp)},{d:1.0,anim:settle(c=>standPose(c,{z:-12.2,armOut:.6}))},...shuffle(-12.2,-11.3),{walk:[0,-10.8],land:1,d:1.4}]};

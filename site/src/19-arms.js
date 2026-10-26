@@ -183,7 +183,7 @@ Object.assign(MEAS,{
   ohArm:{at:'bottom',get:c=>avg2(s=>upperArmFlex(c,s)),fmt:v=>v>=152?'upper arms beside the ears ('+Math.round(v)+'°)':'upper arms drop forward to '+Math.round(v)+'°'},
   kbArm:{at:'top',get:c=>{const d=V().subVectors(wpos(c.bones.RightForeArm),wpos(c.bones.RightArm)).normalize();return Math.asin(clamp(d.y,-1,1))/DEG;},fmt:v=>v>-15?'upper arm level with the back':'upper arm points '+Math.round(-v)+'° down'},
   leanMax:{pick:'max',get:c=>torsoLean(c),fmt:v=>v<22?'standing tall ('+Math.round(v)+'° lean)':'leaning '+Math.round(v)+'° over the stack'},
-  archBack:{pick:'max',get:c=>{const T=torsoAxes(c);const a=V().subVectors(wpos(c.bones.Spine1),wpos(c.bones.Hips)).normalize(),b=V().subVectors(wpos(c.bones.Neck),wpos(c.bones.Spine2)).normalize();
+  archBack:{pick:'max',get:c=>{const S=vSpine(c);const T=torsoAxes(c);const a=V().subVectors(S.Spine1,S.Hips).normalize(),b=V().subVectors(S.Neck,S.Spine2).normalize();
     return Math.atan2(V().crossVectors(a,b).dot(T.L),a.dot(b))/DEG*-1;},fmt:v=>v<13?'back stays flat':'lower back arches '+Math.round(v)+'°'},
   dipFlare:{at:'bottom',get:c=>{const T=torsoAxes(c);return avg2(s=>{const d=V().subVectors(wpos(c.bones[s+'ForeArm']),wpos(c.bones[s+'Arm'])).normalize();return Math.asin(Math.abs(clamp(d.dot(T.L),-1,1)))/DEG;});},fmt:v=>v<32?'elbows point back ('+Math.round(v)+'° out)':'elbows flare '+Math.round(v)+'° out'},
   ankleSwing:{pick:'range',get:c=>wpos(c.bones.LeftFoot).z*100,fmt:v=>v<6?'legs quiet':'legs swing '+Math.round(v)+' cm'},
@@ -192,7 +192,7 @@ Object.assign(MEAS,{
 // ---- getting on and off
 // turn on the spot (canonical x, z) from heading h0 to h1 by stepping round: up to 60° per step, the feet lifting one after the
 // other, instead of the walk clip swinging them; pf(c,{x,z,h}) is the standing pose (with whatever the hands are holding)
-function turnSteps(x,z,h0,h1,pf=standPose,d=.7){const dh=angDiff(h1,h0);const n=Math.max(1,Math.ceil(Math.abs(dh)/(60*DEG)-1e-3));const out=[];
+function turnSteps(x,z,h0,h1,pf=standPose,d=.45){const dh=angDiff(h1,h0);const n=Math.max(1,Math.ceil(Math.abs(dh)/(100*DEG)-1e-3));const out=[];
   for(let i=1;i<=n;i++){const h=h0+dh*i/n;out.push({d,anim:settle(c=>pf(c,{x,z,h}),{step:1})});}return out;}
 const standBarThighs=(c,o)=>{standPose(c,{...o,arms:'none'});holdBarThighs(c);};
 ENTRY.barStand={land:1,pre:[0,-12.6],face:0,enter:(st,e)=>[{walk:[0,-12],land:1,d:.8},{call:c=>{c.carry=null;}},{d:.8,pose:exP(0,1)},{d:1.0,anim:exFrom(0,1)}],
@@ -360,7 +360,7 @@ defEx('cgBench',{group:'triceps',name:'Close-grip bench press',eq:'Barbell',part
   beginner:'3 sets of 6–10, starting with the empty bar. Hands shoulder-width, not touching.',
   forms:mk(base({touchZ:.17,flare:26,grip:.19}),{
     narrow:MS('Grip too narrow','Hands almost touching','The hands are under 25 cm apart, wrists bent back, elbows flaring to make room.','Wrist and elbow strain, and less weight.','Wrist and elbow tendon pain.','Shoulder width, not thumbs.',{grip:.105,flare:48,meas:'handGap',warn:'Hands too close',warnAt:'wrist',cam:'feet'}),
-    flare:MS('Elbows flared','Elbows out, bar to the nipples','The elbows flare to 60–90° and the bar drifts up to the nipple line.','The chest and front shoulders take the load.','Shoulder stress; triceps undertrained.','Elbows brush the ribs.',{flare:78,touchZ:.04,meas:'flare',warn:'Elbows flared',warnAt:'shoulder',cam:'above',strain:['deltF'],mul:{pecL:1.4,triLat:.7}}),
+    flare:MS('Elbows flared','Elbows out, bar to the nipples','The elbows flare to 55–90° and the bar drifts up to the nipple line.','The chest and front shoulders take the load.','Shoulder stress; triceps undertrained.','Elbows brush the ribs.',{flare:78,touchZ:.04,meas:'flare',warn:'Elbows flared',warnAt:'shoulder',cam:'above',strain:['deltF'],mul:{pecL:1.4,triLat:.7}}),
     hips:MS('Hips lift','Hips rise off the bench','The bottom lifts off the bench as you press.','Shorter range and the lower back arches under load.','Lower-back strain.','Bottom down, drive the floor.',{hips:1,meas:'hips',warn:'Hips off the bench',warnAt:'hips',cam:'feetLow'})})});
 defEx('pushdown',{group:'triceps',name:'Rope pushdown',eq:'Cable',part:'Triceps (outer heads)',station:'cableCol',entry:'cableColA',pulley:2.0,att:'rope',kind:'curl',pose:posePushdown,
   quip:'Elbows glued. Only the forearms are allowed to move.',mus:TRI_MUS,
