@@ -3,17 +3,52 @@
 const loader=new GLTFLoader();
 const mixers=[];
 let hero=null,coach=null,twin=null;
+// ---- character look (applied to every character material when it is cloned): skin that is not plastic, fabric that reads
+// as fabric, crisp hair cards, glossy eyes. Plain MeshPhysical parameters only (the muscle overlay patches the shader).
+function charMat(m){const n=m.name||'';if(!m.isMeshStandardMaterial)return;
+  if(/skin/i.test(n)){ // skin: soft broad highlight (low F0 like real skin), a warm sheen on the rim standing in for subsurface light
+    m.roughness=.52;if('specularIntensity' in m){m.specularIntensity=.45;m.specularColor&&m.specularColor.setRGB(1,.92,.86);}
+    if('sheen' in m){m.sheen=.35;m.sheenRoughness=.55;m.sheenColor.setRGB(.62,.26,.17);}
+    m.color.multiply(new THREE.Color(1.03,.985,.95));}
+  else if(/^Hair/.test(n)){ // alpha-tested cards: sorted with the body, no see-through halo, slight sheen along the strands
+    m.transparent=false;m.alphaTest=.42;m.depthWrite=true;m.roughness=.48;if('sheen' in m){m.sheen=.4;m.sheenRoughness=.4;m.sheenColor.setRGB(.35,.28,.22);}}
+  else if(/^Eyes/.test(n)){m.roughness=.12;if('specularIntensity' in m)m.specularIntensity=1;}
+  else if(/^Eye(brows|lashes)/.test(n)){m.depthWrite=false;}
+  else if(/shoe/i.test(n)){m.roughness=.62;}
+  else if(/^Cloth/.test(n)){ // knit and synthetic gym fabric: matte with a soft grazing-angle sheen
+    m.roughness=Math.max(m.roughness,.9);if('specularIntensity' in m)m.specularIntensity=.3;
+    if('sheen' in m){m.sheen=.6;m.sheenRoughness=.7;m.sheenColor.copy(m.color).lerp(new THREE.Color(1,1,1),.35).multiplyScalar(.6);}}
+  m.needsUpdate=true;}
+// soft contact shadows: a dark blob under each foot that fades as the foot lifts (the sun shadow alone leaves the shoes floating
+// under the point lights)
+const BLOB_TEX=(()=>{const c=document.createElement('canvas');c.width=c.height=64;const x=c.getContext('2d');const g=x.createRadialGradient(32,32,2,32,32,31);
+  g.addColorStop(0,'rgba(0,0,0,1)');g.addColorStop(.5,'rgba(0,0,0,.55)');g.addColorStop(1,'rgba(0,0,0,0)');x.fillStyle=g;x.fillRect(0,0,64,64);return new THREE.CanvasTexture(c);})();
+function addFootBlobs(c){c.blobs=[];for(const s of['Left','Right']){const m=new THREE.Mesh(new THREE.PlaneGeometry(1,1),new THREE.MeshBasicMaterial({map:BLOB_TEX,transparent:true,depthWrite:false,opacity:.5,toneMapped:false}));
+  m.rotation.x=-Math.PI/2;m.renderOrder=1;m.userData.side=s;c.root.add(m);c.blobs.push(m);}}
+const _bf=new THREE.Vector3(),_bt=new THREE.Vector3(),_bc=new THREE.Vector3(),_be=new THREE.Euler(),_bq=new THREE.Quaternion();
+function footBlobs(c){if(!c.blobs||!c.root.visible)return;c.root.updateMatrixWorld(true);
+  for(const m of c.blobs){const s=m.userData.side;
+    c.bones[s+'Foot'].getWorldPosition(_bf);c.bones[s+'ToeBase'].getWorldPosition(_bt);const h=Math.max(0,Math.min(_bf.y-c.ankY0*.9,_bt.y-c.toeY0*.9));
+    _bc.set((_bf.x+_bt.x*1.4)/2.4,.004,(_bf.z+_bt.z*1.4)/2.4);c.root.worldToLocal(_bc);m.position.copy(_bc);
+    _be.set(-Math.PI/2,Math.atan2(_bt.x-_bf.x,_bt.z-_bf.z)-Math.PI,0,'YXZ');m.quaternion.setFromEuler(_be).premultiply(c.root.getWorldQuaternion(_bq).invert()); // flat on the floor, long axis along the foot
+    m.scale.set(.15,.3,1);m.material.opacity=.42*Math.max(0,1-h/.12);m.visible=m.material.opacity>.01;}}
+// tops sit a few millimetres off the skin: with linear-blend skinning the shoulders otherwise poke through tight shirts when the
+// arms swing (bind-pose geometry is shared by every clone, so it is done once per geometry)
+function inflateCloth(o){const n=(o.material&&o.material.name)||'';const g=o.geometry;if(!/^Cloth.*(shirt|tank|top)/i.test(n)||g.userData.inflated)return;
+  const d=/crude_t-shirt/.test(n)?.009:.005;const P=g.attributes.position,N=g.attributes.normal;if(!N)return;
+  for(let i=0;i<P.count;i++)P.setXYZ(i,P.getX(i)+N.getX(i)*d,P.getY(i)+N.getY(i)*d,P.getZ(i)+N.getZ(i)*d);P.needsUpdate=true;g.computeBoundingSphere();g.userData.inflated=true;}
 function makeChar(g,U){
   const m=SkeletonUtils.clone(g.scene);
   const bones={};const mats=[];const meshes=[];
   m.traverse(o=>{if(o.isBone)bones[o.name.replace('mixamorig','')]=o;
-    if(o.isSkinnedMesh){o.castShadow=true;o.receiveShadow=true;o.frustumCulled=false;meshes.push(o);
-      const ms=Array.isArray(o.material)?o.material:[o.material];const cl=ms.map(x=>{const y=x.clone();y.userData.op=y.opacity;y.userData.tr=y.transparent;return y;});o.material=Array.isArray(o.material)?cl:cl[0];mats.push(...cl);}});
+    if(o.isSkinnedMesh){o.castShadow=true;o.receiveShadow=true;o.frustumCulled=false;meshes.push(o);inflateCloth(o);
+      const ms=Array.isArray(o.material)?o.material:[o.material];const cl=ms.map(x=>{const y=x.clone();charMat(y);y.userData.op=y.opacity;y.userData.tr=y.transparent;return y;});o.material=Array.isArray(o.material)?cl:cl[0];mats.push(...cl);}});
   const mixer=new THREE.AnimationMixer(m);mixers.push(mixer);
   const act={};g.animations.forEach(a=>{act[a.name]=mixer.clipAction(a);});
   const rest={};for(const k in bones)rest[k]=bones[k].quaternion.clone();
   const hipRest=bones.Hips.position.clone();
   const c={root:m,bones,rest,hipRest,mixer,act,mats,meshes,cur:null,heading:0,pos:V(),speed:0,hold:[],U};
+  m.updateMatrixWorld(true);c.ankY0=wpos(bones.LeftFoot).y;c.toeY0=wpos(bones.LeftToeBase).y;addFootBlobs(c);
   scene.add(m);return c;}
 // one clip plays at a time, at full weight; the pose it takes over from fades out over a snapshot (applyFade), so the
 // mixer never dips toward the bind pose while two clips cross-fade with weights that do not add up to one

@@ -36,7 +36,7 @@ function goTo(c,target,o={}){ // target world (x,z), o.face = world heading at t
   if(!P&&c.pos.distanceTo(V(target.x,0,target.z))<1.2&&navLOS(c.pos,target))P=[c.pos.clone().setY(0),target.clone().setY(0)];
   if(!P){console.warn('no path',c===hero?'hero':'coach',c.pos.toArray().map(v=>v.toFixed(2)),target.toArray().map(v=>v.toFixed(2)));c.act_={kind:'teleport',target,o};return false;}
   if(c.act_&&c.act_.kind==='seq')endSeq(c);
-  c.act_={kind:'walk',P,L:pathLen(P),s:0,v:0,face:o.face,done:o.done,speed:o.speed||1.25,ph:0,land:o.land};return true;}
+  c.act_={kind:'walk',P,L:pathLen(P),s:0,v:0,face:o.face,done:o.done,speed:o.speed||WALK_SPEED,ph:0,land:o.land};return true;}
 function walkTick(c,dt){const a=c.act_;const rem=a.L-a.s;
   // yield: the coach waits if the lifter is right in front
   if(c===coach&&hero&&hero.root.visible){const d=V(hero.pos.x-c.pos.x,0,hero.pos.z-c.pos.z);const fwd=V(Math.sin(c.heading),0,Math.cos(c.heading));if(d.length()<.95&&d.dot(fwd)>.3){a.v=Math.max(0,a.v-dt*3);play(c,'idle',.3);return;}}
@@ -48,9 +48,9 @@ function walkTick(c,dt){const a=c.act_;const rem=a.L-a.s;
   place(c);c._ph=(c._ph||0)+dt*a.v*5.3;
   // o.land: over the last 0.7 m the clip follows the distance (no skating) and stops as the swinging foot passes the planted one
   const rm=a.L-a.s;const wa=c.act.walk;
-  if(a.land&&c.cur!==wa){play(c,'walk',.3,Math.max(.45,a.v/1.25));wa.time=c._wph??WALK_PASS[0];} // a landed walk carries on from the phase it stopped at
-  if(a.land&&!a.wk&&c.cur===wa&&rm<1.4){const m=walkLand(c,wa.time,rm/WALK_STRIDE).m;if((m>.78&&m<1.02)||rm<.3)a.rem0=Math.max(rm,1e-3);} // start where the stride lands without hurrying
-  if(a.land&&a.rem0&&c.cur===wa){walkSync(c,a,1-rm/a.rem0,a.rem0,false);}else play(c,'walk',.3,Math.max(.45,a.v/1.25));
+  if(a.land&&c.cur!==wa){play(c,'walk',.3,Math.max(.2,a.v/WALK_STRIDE));wa.time=c._wph??WALK_PASS[0];} // a landed walk carries on from the phase it stopped at
+  if(a.land&&!a.wk&&c.cur===wa&&rm<1.4){const m=walkLand(c,wa.time,rm/WALK_STRIDE).m;if((m>.78&&m<1.02)||(rm<.3&&m<1.3))a.rem0=Math.max(rm,1e-3);} // start where the stride lands without hurrying (never more than 1.3x: a hurried mocap swing flicks the foot 25 cm in a frame; then the walk just ends)
+  if(a.land&&a.rem0&&c.cur===wa){walkSync(c,a,1-rm/a.rem0,a.rem0,false);}else play(c,'walk',.3,Math.max(.2,a.v/WALK_STRIDE));
   if(a.s>=a.L-.005){if(a.face!==undefined&&Math.abs(angDiff(a.face,c.heading))>.06){c.act_={kind:'turn',h:a.face,done:a.done,land:a.land};}
     else{c.act_={kind:'idle'};play(c,'idle',.4);a.done&&a.done();}}}
 function turnTick(c,dt){const a=c.act_;if(a.h0===undefined)a.h0=Math.abs(angDiff(a.h,c.heading));const d=angDiff(a.h,c.heading);const st=Math.sign(d)*Math.min(Math.abs(d),dt*(a.land?1.7:2.4));c.heading+=st;place(c);
@@ -76,10 +76,10 @@ function endSeq(c){const a=c.act_;c.act_={kind:'pose'};}
 function seqTick(c,dt){const a=c.act_;const S=a.steps[a.i];if(!S)return;a.t+=dt;
   if(S.walk){const k=clamp(a.t/a.d,0,1);c.pos.lerpVectors(a.from,a.to,smooth(k));place(c);
     // the steps follow the body's eased speed (slow at the start and the stop), so the feet don't swing at full speed while the body stops
-    const v=Math.max(.35,6*k*(1-k)/1.5);if(S.land)walkSync(c,a,smooth(k),a.from.distanceTo(a.to)*(S.back?-1:1));else play(c,'walk',.25,(S.back?-.6:.7)*v);c._ph=(c._ph||0)+dt*(S.back?3:4)*v;
+    const v=Math.max(.35,6*k*(1-k)/1.5);if(S.land){walkSync(c,a,smooth(k),a.from.distanceTo(a.to)*(S.back?-1:1));if(!a.wk.dfix){a.wk.dfix=1;a.d=Math.max(a.d,Math.abs(a.wk.T-a.wk.t0)*1.5/1.3);}} // (a short landed step is stretched so the clip never runs faster than 1.3x: a quicker step flicks the swinging foot)else play(c,'walk',.25,(S.back?-1:1)*clamp(a.from.distanceTo(a.to)*6*k*(1-k)/a.d/WALK_STRIDE,.3,1.35)); // the clip at the body's speed (feet planted), never hurried past a brisk walkc._ph=(c._ph||0)+dt*(S.back?3:4)*v;
     clipPost(c,dt);if(k>=1){play(c,'idle',.3);nextStep(c);}return;}
   if(S.turn!==undefined){if(a.h0===undefined)a.h0=Math.abs(angDiff(a.h,c.heading));const d=angDiff(a.h,c.heading);c.heading+=Math.sign(d)*Math.min(Math.abs(d),dt*2.2);place(c);
-    if(S.land)walkSync(c,a,a.h0>1e-3?1-Math.abs(angDiff(a.h,c.heading))/a.h0:1,a.h0*.3);else play(c,'walk',.25,.42);clipPost(c,dt);if(Math.abs(d)<.03){c.heading=a.h;place(c);play(c,'idle',.3);a.h0=undefined;nextStep(c);}return;}
+    if(S.land)walkSync(c,a,a.h0>1e-3?1-Math.abs(angDiff(a.h,c.heading))/a.h0:1,a.h0*.3);else play(c,'walk',.25,.34);clipPost(c,dt);if(Math.abs(d)<.03){c.heading=a.h;place(c);play(c,'idle',.3);a.h0=undefined;nextStep(c);}return;}
   const k=clamp(a.t/S.d,0,1);
   if(S.anim){S.anim(c,k);frame(c,a.st);}
   else{S.pose(c,k);frame(c,a.st);const B=snapshot(c);blendTo(c,a.from,B,S.lin?k:ease(k));}
@@ -88,8 +88,11 @@ function seqTick(c,dt){const a=c.act_;const S=a.steps[a.i];if(!S)return;a.t+=dt;
 // {walk|turn, land:true}: the walk clip is driven by the distance travelled (the planted foot stays put instead of skating) and is
 // timed to finish where the swinging foot passes the planted one, slowing to a stop with the body: the step that follows sets
 // that foot down instead of the clip freezing mid-stride. A walk that starts from a still pose starts from that phase too.
-const WALK_STRIDE=1.27; // metres of travel per second of the walk clip (how fast its planted foot moves back)
-const WALK_PASS=[.09,.545]; // clip times where the swinging foot passes the planted one
+// (the walk clip is a mocap gait cycle, see humans/README.md; these numbers are measured on it by the retarget script: every
+// character's clip is time-scaled to the same WALK_STRIDE, so the clip played at timeScale v/WALK_STRIDE keeps the feet planted)
+const WALK_STRIDE=0.916; // metres of travel per second of the walk clip (how fast its planted foot moves back)
+const WALK_PASS=[0.438,1.094]; // clip times where the swinging foot passes the planted one
+const WALK_SPEED=1.05; // cruising speed along a path (m/s): the clip then plays at WALK_SPEED/WALK_STRIDE
 // the pass-phase clip time to finish at, from clip time t0 with A0 clip-seconds of travel ahead: {T, m = how much faster the clip runs}
 // (a hurried clip swings the foot fast, so slowing down is preferred to speeding up, and more than a third faster is never
 // chosen: a stalled clip (a pivot on the spot) is better than a flicked foot)

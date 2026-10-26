@@ -25,11 +25,13 @@ function seatRest(c){seatBody(c,{});for(const s of[1,-1]){const sd=sideOf(s);con
 // after a blended pose step: re-solve the legs to planted ankles (canonical [x,z] per side), so the feet never slide into
 // or dip through the floor while the hips move down to a seat or up from it
 function pinFeet(st,feet,o={}){let from=null,lastK=1;return (c,k)=>{const h=o.h||0;const fwd=V(Math.sin(h),0,Math.cos(h)).applyQuaternion(st.q);
-  if(!from||k<lastK)from=[wpos(c.bones.LeftFoot),wpos(c.bones.RightFoot)];lastK=k;
+  if(!from||k<lastK){from=[wpos(c.bones.LeftFoot),wpos(c.bones.RightFoot)];from.toe=['Left','Right'].map(sd=>wpos(c.bones[sd+'ToeBase']).sub(wpos(c.bones[sd+'Foot'])).normalize());}lastK=k;
   for(const s of[1,-1]){const f=feet[s>0?0:1];const T=toW(st,V(f[0],o.y??D.ankY,f[1]));const F0=from[s>0?0:1];const dist=F0.distanceTo(T);
     // a foot that is not yet where it will stand takes a small step there (lifted a little in the middle)
     const A=dist<.02?T:F0.clone().lerp(T,smooth(k)).add(V(0,Math.sin(Math.PI*k)*Math.min(.08,dist*.5),0));
-    const pole=fwd.clone().add(V(0,.25,0)).addScaledVector(V(s,0,0).applyQuaternion(st.q),o.out||0);legTo(c,sideOf(s),A,pole);footTo(c,sideOf(s),A.clone().addScaledVector(fwd,.15).setY(A.y-D.ankY*.65));}
+    const pole=fwd.clone().add(V(0,.25,0)).addScaledVector(V(s,0,0).applyQuaternion(st.q),o.out||0);legTo(c,sideOf(s),A,pole);
+    // the foot turns from the way it pointed when the step began (a walk can end with the toe still pointing down) to flat
+    const td=V().addScaledVector(fwd,.15).setY(-D.ankY*.65);const tl=td.length();footTo(c,sideOf(s),A.clone().add(from.toe[s>0?0:1].clone().lerp(td.normalize(),smooth(Math.min(1,k*1.6))).normalize().multiplyScalar(tl)));}
   c.root.updateMatrixWorld(true);holdUpdate(c);};}
 // a blended pose step whose feet travel in a small arc from where they were to where the pose puts them (lifted, never
 // dragged through the floor); the foot keeps its blended orientation. o.sides limits it to one foot.

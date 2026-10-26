@@ -279,7 +279,8 @@ function seatCalfSit(c,P,padY,free){setRoot(c,qX(4*DEG),V(0,SCS.seatY+.1*D.s,-12
 const SCS_FEET=()=>calfFeet(null,SCS.stepY,SCS.edgeZ,0).map(f=>({a:f.A,t:f.toe.clone().add(V(0,0,.05)),pole:V(0,.4,1)}));
 const SCS_UP=1.0;
 ENTRY.seatCalf={pre:[.8,-12.1],face:-Math.PI/2,
-  enter:(st,e)=>[{walk:[.42,-12.1],d:.7},{turn:0},{d:1.0,pose:c=>seatCalfSit(c,st.P,SCS_UP),props:plantFeet(st,SCS_FEET())},
+  enter:(st,e)=>[{walk:[.42,-12.1],d:.7},{turn:0},{d:.45,pose:c=>standPose(c,{x:.42,z:-12.1,h:0}),props:plantFeet(st,standFeet({x:.42,z:-12.1,h:0}))}, // arms settle at the sides before sitting (from a mid-swing arm the hand cut through the frame post)
+    {d:1.0,pose:c=>seatCalfSit(c,st.P,SCS_UP),props:plantFeet(st,SCS_FEET())},
     {d:.9,anim:(c,k)=>{const y=seatCalfSit(c,st.P,SCS_UP);seatCalfSit(c,st.P,lerp(SCS_UP,y,smooth(k)));}},{d:.8,pose:exP(.5,3)},{d:.6,anim:exFrom(.5,1)}],
   leave:(st,e)=>[{d:.8,pose:exP(.5,3)},{d:.9,anim:(c,k)=>{const y=seatCalfSit(c,st.P,SCS_UP);seatCalfSit(c,st.P,lerp(y,SCS_UP,smooth(k)));}},
     {d:.6,pose:c=>seatCalfSit(c,st.P,SCS_UP,true)},{d:.9,pose:c=>standPose(c,{x:.42,z:-12.1,h:Math.PI/2}),props:plantFeet(st,standFeet({x:.42,z:-12.1,h:Math.PI/2}))},{walk:[.8,-12.1],d:.6}]};

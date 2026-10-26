@@ -16,11 +16,16 @@ function update(dtReal){const dt0=paused&&flow==='exercise'?0:dtReal;const dt=fl
   for(const c of [hero,coach]){const a=c.act_||{};if(a.kind!=='seq'&&a.kind!=='pose')actTick(c,dt);}
   for(const m of mixers)m.update(dt);
   for(const c of [hero,coach]){const a=c.act_||{};if(a.kind==='seq')seqTick(c,dt);else postClip(c,dt);}
+  for(const c of [hero,coach,twin,...extras])c&&footBlobs(c);
   if(ST&&ST.P&&ST.P.tick)ST.P.tick(); // a station's parts that follow the lifter (cables on handles being carried)
   if(coach&&coach.act_&&coach.act_.kind==='idle'&&flow!=='ask'&&flow!=='greet'&&hero)turnTo(coach,Math.atan2(hero.pos.x-coach.pos.x,hero.pos.z-coach.pos.z),dt,1.5);
   if(sayTimer>0){sayTimer-=dtReal;if(sayTimer<=0)say('',false);}
   // flow
-  if(flow==='street'){followCam(hero,3.6,1.8,hero.pos.z>3?1.4:0);if(ft>.5&&ft<4)caption('Monday, 9:40 pm. Most people went home.');else caption('');
+  if(flow==='landing'&&hero){landingCam();}
+  else if(flow==='street'&&swing&&swing.t<2.6){swing.t+=dt;const k=smooth(clamp(swing.t/2.6,0,1));const a1=2*Math.PI;const a=swing.a0+angDiff(a1,swing.a0)*k;
+    const r=lerp(swing.r,3.6,k);cam.tPos.set(hero.pos.x+Math.sin(a)*r,lerp(swing.y,1.8,k),hero.pos.z+Math.cos(a)*r);cam.pos.copy(cam.tPos);cam.tLook.set(hero.pos.x,lerp(1.1,1.3,k),hero.pos.z);
+    if(ft>.5&&ft<4)caption('Monday, 9:40 pm. Most people went home.');}
+  else if(flow==='street'){followCam(hero,3.6,1.8,hero.pos.z>3?1.4:0);if(ft>.5&&ft<4)caption('Monday, 9:40 pm. Most people went home.');else caption('');
     if(hero.act_.kind==='idle'){setFlow('greet');caption('');}}
   else if(flow==='greet'){const a=ft*.25;cam.tPos.set(INSIDE.x-2.6,1.9,INSIDE.z+2.2);cam.tLook.set(MEET.x,1.35,MEET.z-.6);
     if(ft<2.6)caption('The lights know the way.');else caption('');
@@ -55,8 +60,17 @@ function finishWorkout(){setFlow('done');const g=SES.group,p=SES.plan;const sets
    <div class="prow"><button class="btn" id="again">Train another muscle</button><button class="btn ghost sm" id="replay">Back to the plan</button></div>`;
   $('#again').onclick=()=>{el.hidden=true;askAgain();};$('#replay').onclick=()=>{el.hidden=true;SES.done=new Set();setFlow('plan');showPlan(true);};}
 $('#fast').addEventListener('click',()=>{fastF=fastF>1?1:4;$('#fast').textContent=fastF>1?'Normal speed':'Fast-forward ››';});
+function landingCam(){const h=hero.pos,wide=innerWidth>760&&innerWidth>innerHeight;
+  if(wide){cam.tPos.set(h.x-.35,1.32,h.z+3.15);cam.tLook.set(h.x-.95,1.08,h.z);}
+  else{cam.tPos.set(h.x,1.25,h.z+3.9);cam.tLook.set(h.x,1.62,h.z);}}
+// the street frame: canonical == world, so scripted steps (turns) can be used out here
+let STREET=null;
+function streetFrame(){if(!STREET){const g=new THREE.Group();scene.add(g);g.updateMatrixWorld(true);STREET={g,q:qY(0),rot:0};}return STREET;}
+let swing=null; // camera arc from the landing view (in front of the hero) round to behind them
 function startStory(){$('#landing').classList.add('out');$('#skip').hidden=false;setFlow('street');
-  goTo(hero,INSIDE,{face:Math.PI,speed:1.3});}
+  const d=V().subVectors(cam.pos,hero.pos);swing={a0:Math.atan2(d.x,d.z),r:Math.hypot(d.x,d.z),y:cam.pos.y,t:0};
+  // turn round on the spot to face the door, then walk in
+  runSeq(hero,streetFrame(),[...turnSteps(hero.pos.x,hero.pos.z,hero.heading,Math.PI),{call:c=>{c.heading=Math.PI;}}],()=>goTo(hero,INSIDE,{face:Math.PI,speed:WALK_SPEED*1.04,land:1}));}
 function skipIntro(){if(flow!=='street'&&flow!=='greet')return;$('#skip').hidden=true;lightsOn=1;caption('');hero.pos.copy(INSIDE);hero.heading=Math.PI;place(hero);hero.act_={kind:'idle'};play(hero,'idle',0);
   coach.pos.copy(MEET);coach.heading=Math.atan2(INSIDE.x-MEET.x,INSIDE.z-MEET.z);place(coach);coach.act_={kind:'idle'};play(coach,'idle',0);coach._called=1;cam.pos.set(INSIDE.x-2.4,1.75,INSIDE.z+1.6);setFlow('ask');}
 $('#go').addEventListener('click',startStory);$('#skip').addEventListener('click',skipIntro);
@@ -67,21 +81,21 @@ addEventListener('keydown',e=>{if(flow==='exercise'){if(e.code==='Space'){setPau
 
 // ---------------------------------------------------------------- loading
 function parseGLB(b64){return new Promise((res,rej)=>{const s=atob(b64);const u=new Uint8Array(s.length);for(let i=0;i<s.length;i++)u[i]=s.charCodeAt(i);loader.parse(u.buffer,'',res,rej);});}
-async function boot(){try{const G={};for(const n of['lifter','coach','member']){$('#loading').textContent='Loading the gym · '+n;G[n]=await parseGLB(window.GLB[n]);}
+async function boot(){try{const G={};for(const n of['lifter','coach','member']){G[n]=await parseGLB(window.GLB[n]);}
     hero=makeChar(G.lifter,MU);measure(hero);paintMuscles(hero);hero.root.updateMatrixWorld(true);
     twin=makeChar(G.lifter,MU2);twin.mats.forEach(m=>patchMuscleMat(m,MU2));twin.root.visible=false;stopClips(twin);
     coach=makeChar(G.coach,makeMU());
     layoutGym();
     const runner=makeChar(G.member,makeMU());runner.pos.set(8.5,.21,-21.8);runner.heading=Math.PI;place(runner);play(runner,'run',0,.85);extras.push(runner);
     buildNav();
-    hero.pos.copy(HERO_START);hero.heading=Math.PI;place(hero);play(hero,'idle',0);hero.act_={kind:'idle'};
+    hero.pos.copy(HERO_START);hero.heading=0;place(hero);play(hero,'idle',0);hero.act_={kind:'idle'};
     coach.pos.set(2.2,0,-15.2);coach.heading=Math.PI;place(coach);play(coach,'idle',0);coach.act_={kind:'idle'};
     renderChips();
     const nEx=Object.keys(EXS).length,nM=Object.values(EXS).reduce((t,e)=>t+Object.keys(e.forms).length-1,0);
-    document.querySelector('.credit').firstChild.textContent=`${Object.keys(GROUPS).length} muscle groups · ${nEx} exercises · ${nM} common mistakes. People made with MakeHuman (CC0); 3D clothing by Elvaerwyn, Mindfront and punkduck (CC-BY 4.0).`;
-    $('#loading').textContent='';$('#go').disabled=false;$('#go').textContent='Walk me in →';
-    cam.pos.set(3.4,1.7,15.5);cam.look.set(0,2.6,0);cam.tPos.copy(cam.pos);cam.tLook.copy(cam.look);
-    window.__ready=true;}catch(e){console.error(e);$('#loading').textContent='The gym didn’t load: '+(e&&e.message||e);}}
+    $('#credit').textContent=`${Object.keys(GROUPS).length} muscle groups · ${nEx} exercises · ${nM} common mistakes. People made with MakeHuman (CC0); 3D clothing by Elvaerwyn, Mindfront and punkduck (CC-BY 4.0); walking and idle motion capture from the 100STYLE dataset by Mason, Starke and Komura (CC BY 4.0).`;
+    $('#go').disabled=false;$('#go').textContent='Walk me in →';
+    landingCam();cam.pos.copy(cam.tPos);cam.look.copy(cam.tLook);
+    window.__ready=true;}catch(e){console.error(e);$('#go').textContent='The gym didn’t load. Reload the page';}}
 if(!/[?&]paint/.test(location.search))boot();
 const clock=new THREE.Clock();
 // in test mode the page renders only after the test moves time on (keeps headless runs fast)

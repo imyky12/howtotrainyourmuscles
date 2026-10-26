@@ -33,16 +33,20 @@ button:focus-visible{outline:2px solid var(--help);outline-offset:2px}
 .fade{transition:opacity .45s,transform .45s}.fade.out{opacity:0;transform:translateY(8px);pointer-events:none}
 
 /* landing */
-#landing{position:fixed;inset:0;z-index:40;display:grid;align-items:end;
-  background:linear-gradient(180deg,rgba(7,9,11,0) 35%,rgba(7,9,11,.86) 78%),radial-gradient(ellipse at 70% 30%,rgba(255,59,42,.10),transparent 60%);
-  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:0 calc(28px + env(safe-area-inset-bottom,0px));transition:opacity .9s}
+#landing{position:fixed;inset:0;z-index:40;display:grid;align-items:center;
+  background:linear-gradient(90deg,rgba(7,9,11,.78) 0%,rgba(7,9,11,.45) 38%,rgba(7,9,11,0) 60%);
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:calc(24px + env(safe-area-inset-top,0px)) calc(24px + env(safe-area-inset-bottom,0px));transition:opacity .9s}
 #landing.out{opacity:0;pointer-events:none}
-.lcard{max-width:760px;display:grid;gap:18px;padding:0 clamp(0px,3vw,40px) clamp(8px,4vh,48px)}
-.lcard h1{margin:0;font:900 clamp(3.1rem,10.5vw,7.6rem)/.84 var(--display);text-transform:uppercase;letter-spacing:-.01em;text-wrap:balance}
+.lcard{max-width:min(46vw,640px);display:grid;gap:28px;padding-left:clamp(0px,4vw,64px)}
+.lcard h1{margin:0;font:900 clamp(3rem,7.4vw,7.2rem)/.86 var(--display);text-transform:uppercase;letter-spacing:-.01em;text-wrap:balance;text-shadow:0 4px 30px rgba(0,0,0,.5)}
 .lcard h1 em{font-style:normal;color:var(--main)}
-.lcard p{margin:0;max-width:52ch;color:#d5d8da;font-size:1.05rem}
-.lrow{display:flex;flex-wrap:wrap;gap:14px;align-items:center}
-.credit{font-size:.72rem;color:var(--muted);max-width:60ch}
+.lcard .btn{font-size:1.05rem;padding:16px 28px}
+@media (max-width:760px),(max-aspect-ratio:1/1){
+  #landing{align-items:start;background:linear-gradient(180deg,rgba(7,9,11,.82) 0%,rgba(7,9,11,.4) 34%,rgba(7,9,11,0) 50%)}
+  .lcard{max-width:none;gap:18px;padding-left:0;padding-top:clamp(24px,6vh,64px)}
+  .lcard h1{font-size:clamp(2.6rem,13vw,4.4rem)}
+}
+.credit{margin:0;font-size:.7rem;color:var(--muted);max-width:60ch}
 .kbd{font:600 .78rem var(--body);color:var(--muted)}
 
 /* top bar */
@@ -173,11 +177,8 @@ button:focus-visible{outline:2px solid var(--help);outline-offset:2px}
 
 <section id="landing" aria-label="Welcome">
   <div class="lcard">
-    <span class="eyebrow">Muscle House · open 24/7 · no membership needed</span>
     <h1>Your muscles called. <em>They want a plan.</em></h1>
-    <p>Walk into the gym, tell the coach what you’re training, and watch every exercise done the right way and the wrong way, with the working muscles lit up.</p>
-    <div class="lrow"><button class="btn" id="go" disabled>Warming up…</button><span class="kbd" id="loading">Loading the gym</span></div>
-    <p class="credit">7 muscle groups · 55 exercises · 140 common mistakes. People made with MakeHuman (CC0); 3D clothing by Elvaerwyn, Mindfront and punkduck (CC-BY 4.0).</p>
+    <div><button class="btn" id="go" disabled>Warming up…</button></div>
   </div>
 </section>
 
@@ -201,6 +202,7 @@ button:focus-visible{outline:2px solid var(--help);outline-offset:2px}
   <div class="parts" id="planParts"></div>
   <ol id="planList"></ol>
   <div class="prow"><button class="btn" id="planGo"></button><button class="btn ghost sm" id="planSwap">Pick another muscle</button><button class="btn ghost sm" id="planClose" hidden>Close</button></div>
+  <p class="credit" id="credit"></p>
 </aside>
 
 <div id="walk" class="glass" hidden><span id="walkTxt"></span><button class="btn sm ghost" id="fast">Fast-forward ››</button></div>

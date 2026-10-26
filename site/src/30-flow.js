@@ -50,7 +50,7 @@ function coachSpotOf(e){const st=STATIONS[e.station],cs=e.coachSpot;const c=toW(
   const cands=[[cs.p[0],cs.p[1]],[-cs.p[0],cs.p[1]],[-cs.p[0],-24-cs.p[1]],[cs.p[0],-24-cs.p[1]],[1.5,-12],[-1.5,-12],[0,-13.5],[1.2,-13.2],[-1.2,-13.2]].map(q=>toW(st,V(q[0],0,q[1])));let best=null,ba=-1e9;
   for(const p of cands){if(!navFree(p.x,p.z))continue;const toward=V(p.x-c.x,0,p.z-c.z).dot(d);if(toward<=.15){best=p;break;}if(-toward>ba){ba=-toward;best=p;}}
   best=best||cands[0];return {p:best,h:Math.atan2(c.x-best.x,c.z-best.z)};}
-function coachTo(e,done){const s=coachSpotOf(e);goTo(coach,s.p,{face:s.h,speed:1.3,done});}
+function coachTo(e,done){const s=coachSpotOf(e);goTo(coach,s.p,{face:s.h,speed:WALK_SPEED*1.04,done});}
 function walkStatus(t){$('#walk').hidden=!t;$('#walkTxt').textContent=t||'';}
 function goExercise(k){const e=EXS[k];if(!e)return;closePanels();showPlan(false);pending=k;SES.i=Math.max(0,SES.plan?SES.plan.items.findIndex(it=>it[0]===k):0);renderPlanList();
   const isBar=e.needs==='bar'||e.needs==='ez';const start=()=>{if(isBar)fetchBar(e,()=>approach(e));else if(e.needs)fetchDB(e,()=>approach(e));else approach(e);};

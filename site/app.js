@@ -148,17 +148,52 @@ function plateTree(par,x,z){const g=new THREE.Group();g.position.set(x,0,z);par.
 const loader=new GLTFLoader();
 const mixers=[];
 let hero=null,coach=null,twin=null;
+// ---- character look (applied to every character material when it is cloned): skin that is not plastic, fabric that reads
+// as fabric, crisp hair cards, glossy eyes. Plain MeshPhysical parameters only (the muscle overlay patches the shader).
+function charMat(m){const n=m.name||'';if(!m.isMeshStandardMaterial)return;
+  if(/skin/i.test(n)){ // skin: soft broad highlight (low F0 like real skin), a warm sheen on the rim standing in for subsurface light
+    m.roughness=.52;if('specularIntensity' in m){m.specularIntensity=.45;m.specularColor&&m.specularColor.setRGB(1,.92,.86);}
+    if('sheen' in m){m.sheen=.35;m.sheenRoughness=.55;m.sheenColor.setRGB(.62,.26,.17);}
+    m.color.multiply(new THREE.Color(1.03,.985,.95));}
+  else if(/^Hair/.test(n)){ // alpha-tested cards: sorted with the body, no see-through halo, slight sheen along the strands
+    m.transparent=false;m.alphaTest=.42;m.depthWrite=true;m.roughness=.48;if('sheen' in m){m.sheen=.4;m.sheenRoughness=.4;m.sheenColor.setRGB(.35,.28,.22);}}
+  else if(/^Eyes/.test(n)){m.roughness=.12;if('specularIntensity' in m)m.specularIntensity=1;}
+  else if(/^Eye(brows|lashes)/.test(n)){m.depthWrite=false;}
+  else if(/shoe/i.test(n)){m.roughness=.62;}
+  else if(/^Cloth/.test(n)){ // knit and synthetic gym fabric: matte with a soft grazing-angle sheen
+    m.roughness=Math.max(m.roughness,.9);if('specularIntensity' in m)m.specularIntensity=.3;
+    if('sheen' in m){m.sheen=.6;m.sheenRoughness=.7;m.sheenColor.copy(m.color).lerp(new THREE.Color(1,1,1),.35).multiplyScalar(.6);}}
+  m.needsUpdate=true;}
+// soft contact shadows: a dark blob under each foot that fades as the foot lifts (the sun shadow alone leaves the shoes floating
+// under the point lights)
+const BLOB_TEX=(()=>{const c=document.createElement('canvas');c.width=c.height=64;const x=c.getContext('2d');const g=x.createRadialGradient(32,32,2,32,32,31);
+  g.addColorStop(0,'rgba(0,0,0,1)');g.addColorStop(.5,'rgba(0,0,0,.55)');g.addColorStop(1,'rgba(0,0,0,0)');x.fillStyle=g;x.fillRect(0,0,64,64);return new THREE.CanvasTexture(c);})();
+function addFootBlobs(c){c.blobs=[];for(const s of['Left','Right']){const m=new THREE.Mesh(new THREE.PlaneGeometry(1,1),new THREE.MeshBasicMaterial({map:BLOB_TEX,transparent:true,depthWrite:false,opacity:.5,toneMapped:false}));
+  m.rotation.x=-Math.PI/2;m.renderOrder=1;m.userData.side=s;c.root.add(m);c.blobs.push(m);}}
+const _bf=new THREE.Vector3(),_bt=new THREE.Vector3(),_bc=new THREE.Vector3(),_be=new THREE.Euler(),_bq=new THREE.Quaternion();
+function footBlobs(c){if(!c.blobs||!c.root.visible)return;c.root.updateMatrixWorld(true);
+  for(const m of c.blobs){const s=m.userData.side;
+    c.bones[s+'Foot'].getWorldPosition(_bf);c.bones[s+'ToeBase'].getWorldPosition(_bt);const h=Math.max(0,Math.min(_bf.y-c.ankY0*.9,_bt.y-c.toeY0*.9));
+    _bc.set((_bf.x+_bt.x*1.4)/2.4,.004,(_bf.z+_bt.z*1.4)/2.4);c.root.worldToLocal(_bc);m.position.copy(_bc);
+    _be.set(-Math.PI/2,Math.atan2(_bt.x-_bf.x,_bt.z-_bf.z)-Math.PI,0,'YXZ');m.quaternion.setFromEuler(_be).premultiply(c.root.getWorldQuaternion(_bq).invert()); // flat on the floor, long axis along the foot
+    m.scale.set(.15,.3,1);m.material.opacity=.42*Math.max(0,1-h/.12);m.visible=m.material.opacity>.01;}}
+// tops sit a few millimetres off the skin: with linear-blend skinning the shoulders otherwise poke through tight shirts when the
+// arms swing (bind-pose geometry is shared by every clone, so it is done once per geometry)
+function inflateCloth(o){const n=(o.material&&o.material.name)||'';const g=o.geometry;if(!/^Cloth.*(shirt|tank|top)/i.test(n)||g.userData.inflated)return;
+  const d=/crude_t-shirt/.test(n)?.009:.005;const P=g.attributes.position,N=g.attributes.normal;if(!N)return;
+  for(let i=0;i<P.count;i++)P.setXYZ(i,P.getX(i)+N.getX(i)*d,P.getY(i)+N.getY(i)*d,P.getZ(i)+N.getZ(i)*d);P.needsUpdate=true;g.computeBoundingSphere();g.userData.inflated=true;}
 function makeChar(g,U){
   const m=SkeletonUtils.clone(g.scene);
   const bones={};const mats=[];const meshes=[];
   m.traverse(o=>{if(o.isBone)bones[o.name.replace('mixamorig','')]=o;
-    if(o.isSkinnedMesh){o.castShadow=true;o.receiveShadow=true;o.frustumCulled=false;meshes.push(o);
-      const ms=Array.isArray(o.material)?o.material:[o.material];const cl=ms.map(x=>{const y=x.clone();y.userData.op=y.opacity;y.userData.tr=y.transparent;return y;});o.material=Array.isArray(o.material)?cl:cl[0];mats.push(...cl);}});
+    if(o.isSkinnedMesh){o.castShadow=true;o.receiveShadow=true;o.frustumCulled=false;meshes.push(o);inflateCloth(o);
+      const ms=Array.isArray(o.material)?o.material:[o.material];const cl=ms.map(x=>{const y=x.clone();charMat(y);y.userData.op=y.opacity;y.userData.tr=y.transparent;return y;});o.material=Array.isArray(o.material)?cl:cl[0];mats.push(...cl);}});
   const mixer=new THREE.AnimationMixer(m);mixers.push(mixer);
   const act={};g.animations.forEach(a=>{act[a.name]=mixer.clipAction(a);});
   const rest={};for(const k in bones)rest[k]=bones[k].quaternion.clone();
   const hipRest=bones.Hips.position.clone();
   const c={root:m,bones,rest,hipRest,mixer,act,mats,meshes,cur:null,heading:0,pos:V(),speed:0,hold:[],U};
+  m.updateMatrixWorld(true);c.ankY0=wpos(bones.LeftFoot).y;c.toeY0=wpos(bones.LeftToeBase).y;addFootBlobs(c);
   scene.add(m);return c;}
 // one clip plays at a time, at full weight; the pose it takes over from fades out over a snapshot (applyFade), so the
 // mixer never dips toward the bind pose while two clips cross-fade with weights that do not add up to one
@@ -532,7 +567,7 @@ function goTo(c,target,o={}){ // target world (x,z), o.face = world heading at t
   if(!P&&c.pos.distanceTo(V(target.x,0,target.z))<1.2&&navLOS(c.pos,target))P=[c.pos.clone().setY(0),target.clone().setY(0)];
   if(!P){console.warn('no path',c===hero?'hero':'coach',c.pos.toArray().map(v=>v.toFixed(2)),target.toArray().map(v=>v.toFixed(2)));c.act_={kind:'teleport',target,o};return false;}
   if(c.act_&&c.act_.kind==='seq')endSeq(c);
-  c.act_={kind:'walk',P,L:pathLen(P),s:0,v:0,face:o.face,done:o.done,speed:o.speed||1.25,ph:0,land:o.land};return true;}
+  c.act_={kind:'walk',P,L:pathLen(P),s:0,v:0,face:o.face,done:o.done,speed:o.speed||WALK_SPEED,ph:0,land:o.land};return true;}
 function walkTick(c,dt){const a=c.act_;const rem=a.L-a.s;
   // yield: the coach waits if the lifter is right in front
   if(c===coach&&hero&&hero.root.visible){const d=V(hero.pos.x-c.pos.x,0,hero.pos.z-c.pos.z);const fwd=V(Math.sin(c.heading),0,Math.cos(c.heading));if(d.length()<.95&&d.dot(fwd)>.3){a.v=Math.max(0,a.v-dt*3);play(c,'idle',.3);return;}}
@@ -544,9 +579,9 @@ function walkTick(c,dt){const a=c.act_;const rem=a.L-a.s;
   place(c);c._ph=(c._ph||0)+dt*a.v*5.3;
   // o.land: over the last 0.7 m the clip follows the distance (no skating) and stops as the swinging foot passes the planted one
   const rm=a.L-a.s;const wa=c.act.walk;
-  if(a.land&&c.cur!==wa){play(c,'walk',.3,Math.max(.45,a.v/1.25));wa.time=c._wph??WALK_PASS[0];} // a landed walk carries on from the phase it stopped at
-  if(a.land&&!a.wk&&c.cur===wa&&rm<1.4){const m=walkLand(c,wa.time,rm/WALK_STRIDE).m;if((m>.78&&m<1.02)||rm<.3)a.rem0=Math.max(rm,1e-3);} // start where the stride lands without hurrying
-  if(a.land&&a.rem0&&c.cur===wa){walkSync(c,a,1-rm/a.rem0,a.rem0,false);}else play(c,'walk',.3,Math.max(.45,a.v/1.25));
+  if(a.land&&c.cur!==wa){play(c,'walk',.3,Math.max(.2,a.v/WALK_STRIDE));wa.time=c._wph??WALK_PASS[0];} // a landed walk carries on from the phase it stopped at
+  if(a.land&&!a.wk&&c.cur===wa&&rm<1.4){const m=walkLand(c,wa.time,rm/WALK_STRIDE).m;if((m>.78&&m<1.02)||(rm<.3&&m<1.3))a.rem0=Math.max(rm,1e-3);} // start where the stride lands without hurrying (never more than 1.3x: a hurried mocap swing flicks the foot 25 cm in a frame; then the walk just ends)
+  if(a.land&&a.rem0&&c.cur===wa){walkSync(c,a,1-rm/a.rem0,a.rem0,false);}else play(c,'walk',.3,Math.max(.2,a.v/WALK_STRIDE));
   if(a.s>=a.L-.005){if(a.face!==undefined&&Math.abs(angDiff(a.face,c.heading))>.06){c.act_={kind:'turn',h:a.face,done:a.done,land:a.land};}
     else{c.act_={kind:'idle'};play(c,'idle',.4);a.done&&a.done();}}}
 function turnTick(c,dt){const a=c.act_;if(a.h0===undefined)a.h0=Math.abs(angDiff(a.h,c.heading));const d=angDiff(a.h,c.heading);const st=Math.sign(d)*Math.min(Math.abs(d),dt*(a.land?1.7:2.4));c.heading+=st;place(c);
@@ -572,10 +607,10 @@ function endSeq(c){const a=c.act_;c.act_={kind:'pose'};}
 function seqTick(c,dt){const a=c.act_;const S=a.steps[a.i];if(!S)return;a.t+=dt;
   if(S.walk){const k=clamp(a.t/a.d,0,1);c.pos.lerpVectors(a.from,a.to,smooth(k));place(c);
     // the steps follow the body's eased speed (slow at the start and the stop), so the feet don't swing at full speed while the body stops
-    const v=Math.max(.35,6*k*(1-k)/1.5);if(S.land)walkSync(c,a,smooth(k),a.from.distanceTo(a.to)*(S.back?-1:1));else play(c,'walk',.25,(S.back?-.6:.7)*v);c._ph=(c._ph||0)+dt*(S.back?3:4)*v;
+    const v=Math.max(.35,6*k*(1-k)/1.5);if(S.land){walkSync(c,a,smooth(k),a.from.distanceTo(a.to)*(S.back?-1:1));if(!a.wk.dfix){a.wk.dfix=1;a.d=Math.max(a.d,Math.abs(a.wk.T-a.wk.t0)*1.5/1.3);}} // (a short landed step is stretched so the clip never runs faster than 1.3x: a quicker step flicks the swinging foot)else play(c,'walk',.25,(S.back?-1:1)*clamp(a.from.distanceTo(a.to)*6*k*(1-k)/a.d/WALK_STRIDE,.3,1.35)); // the clip at the body's speed (feet planted), never hurried past a brisk walkc._ph=(c._ph||0)+dt*(S.back?3:4)*v;
     clipPost(c,dt);if(k>=1){play(c,'idle',.3);nextStep(c);}return;}
   if(S.turn!==undefined){if(a.h0===undefined)a.h0=Math.abs(angDiff(a.h,c.heading));const d=angDiff(a.h,c.heading);c.heading+=Math.sign(d)*Math.min(Math.abs(d),dt*2.2);place(c);
-    if(S.land)walkSync(c,a,a.h0>1e-3?1-Math.abs(angDiff(a.h,c.heading))/a.h0:1,a.h0*.3);else play(c,'walk',.25,.42);clipPost(c,dt);if(Math.abs(d)<.03){c.heading=a.h;place(c);play(c,'idle',.3);a.h0=undefined;nextStep(c);}return;}
+    if(S.land)walkSync(c,a,a.h0>1e-3?1-Math.abs(angDiff(a.h,c.heading))/a.h0:1,a.h0*.3);else play(c,'walk',.25,.34);clipPost(c,dt);if(Math.abs(d)<.03){c.heading=a.h;place(c);play(c,'idle',.3);a.h0=undefined;nextStep(c);}return;}
   const k=clamp(a.t/S.d,0,1);
   if(S.anim){S.anim(c,k);frame(c,a.st);}
   else{S.pose(c,k);frame(c,a.st);const B=snapshot(c);blendTo(c,a.from,B,S.lin?k:ease(k));}
@@ -584,8 +619,11 @@ function seqTick(c,dt){const a=c.act_;const S=a.steps[a.i];if(!S)return;a.t+=dt;
 // {walk|turn, land:true}: the walk clip is driven by the distance travelled (the planted foot stays put instead of skating) and is
 // timed to finish where the swinging foot passes the planted one, slowing to a stop with the body: the step that follows sets
 // that foot down instead of the clip freezing mid-stride. A walk that starts from a still pose starts from that phase too.
-const WALK_STRIDE=1.27; // metres of travel per second of the walk clip (how fast its planted foot moves back)
-const WALK_PASS=[.09,.545]; // clip times where the swinging foot passes the planted one
+// (the walk clip is a mocap gait cycle, see humans/README.md; these numbers are measured on it by the retarget script: every
+// character's clip is time-scaled to the same WALK_STRIDE, so the clip played at timeScale v/WALK_STRIDE keeps the feet planted)
+const WALK_STRIDE=0.916; // metres of travel per second of the walk clip (how fast its planted foot moves back)
+const WALK_PASS=[0.438,1.094]; // clip times where the swinging foot passes the planted one
+const WALK_SPEED=1.05; // cruising speed along a path (m/s): the clip then plays at WALK_SPEED/WALK_STRIDE
 // the pass-phase clip time to finish at, from clip time t0 with A0 clip-seconds of travel ahead: {T, m = how much faster the clip runs}
 // (a hurried clip swings the foot fast, so slowing down is preferred to speeding up, and more than a third faster is never
 // chosen: a stalled clip (a pivot on the spot) is better than a flicked foot)
@@ -799,11 +837,13 @@ function seatRest(c){seatBody(c,{});for(const s of[1,-1]){const sd=sideOf(s);con
 // after a blended pose step: re-solve the legs to planted ankles (canonical [x,z] per side), so the feet never slide into
 // or dip through the floor while the hips move down to a seat or up from it
 function pinFeet(st,feet,o={}){let from=null,lastK=1;return (c,k)=>{const h=o.h||0;const fwd=V(Math.sin(h),0,Math.cos(h)).applyQuaternion(st.q);
-  if(!from||k<lastK)from=[wpos(c.bones.LeftFoot),wpos(c.bones.RightFoot)];lastK=k;
+  if(!from||k<lastK){from=[wpos(c.bones.LeftFoot),wpos(c.bones.RightFoot)];from.toe=['Left','Right'].map(sd=>wpos(c.bones[sd+'ToeBase']).sub(wpos(c.bones[sd+'Foot'])).normalize());}lastK=k;
   for(const s of[1,-1]){const f=feet[s>0?0:1];const T=toW(st,V(f[0],o.y??D.ankY,f[1]));const F0=from[s>0?0:1];const dist=F0.distanceTo(T);
     // a foot that is not yet where it will stand takes a small step there (lifted a little in the middle)
     const A=dist<.02?T:F0.clone().lerp(T,smooth(k)).add(V(0,Math.sin(Math.PI*k)*Math.min(.08,dist*.5),0));
-    const pole=fwd.clone().add(V(0,.25,0)).addScaledVector(V(s,0,0).applyQuaternion(st.q),o.out||0);legTo(c,sideOf(s),A,pole);footTo(c,sideOf(s),A.clone().addScaledVector(fwd,.15).setY(A.y-D.ankY*.65));}
+    const pole=fwd.clone().add(V(0,.25,0)).addScaledVector(V(s,0,0).applyQuaternion(st.q),o.out||0);legTo(c,sideOf(s),A,pole);
+    // the foot turns from the way it pointed when the step began (a walk can end with the toe still pointing down) to flat
+    const td=V().addScaledVector(fwd,.15).setY(-D.ankY*.65);const tl=td.length();footTo(c,sideOf(s),A.clone().add(from.toe[s>0?0:1].clone().lerp(td.normalize(),smooth(Math.min(1,k*1.6))).normalize().multiplyScalar(tl)));}
   c.root.updateMatrixWorld(true);holdUpdate(c);};}
 // a blended pose step whose feet travel in a small arc from where they were to where the pose puts them (lifted, never
 // dragged through the floor); the foot keeps its blended orientation. o.sides limits it to one foot.
@@ -2051,7 +2091,8 @@ function seatCalfSit(c,P,padY,free){setRoot(c,qX(4*DEG),V(0,SCS.seatY+.1*D.s,-12
 const SCS_FEET=()=>calfFeet(null,SCS.stepY,SCS.edgeZ,0).map(f=>({a:f.A,t:f.toe.clone().add(V(0,0,.05)),pole:V(0,.4,1)}));
 const SCS_UP=1.0;
 ENTRY.seatCalf={pre:[.8,-12.1],face:-Math.PI/2,
-  enter:(st,e)=>[{walk:[.42,-12.1],d:.7},{turn:0},{d:1.0,pose:c=>seatCalfSit(c,st.P,SCS_UP),props:plantFeet(st,SCS_FEET())},
+  enter:(st,e)=>[{walk:[.42,-12.1],d:.7},{turn:0},{d:.45,pose:c=>standPose(c,{x:.42,z:-12.1,h:0}),props:plantFeet(st,standFeet({x:.42,z:-12.1,h:0}))}, // arms settle at the sides before sitting (from a mid-swing arm the hand cut through the frame post)
+    {d:1.0,pose:c=>seatCalfSit(c,st.P,SCS_UP),props:plantFeet(st,SCS_FEET())},
     {d:.9,anim:(c,k)=>{const y=seatCalfSit(c,st.P,SCS_UP);seatCalfSit(c,st.P,lerp(SCS_UP,y,smooth(k)));}},{d:.8,pose:exP(.5,3)},{d:.6,anim:exFrom(.5,1)}],
   leave:(st,e)=>[{d:.8,pose:exP(.5,3)},{d:.9,anim:(c,k)=>{const y=seatCalfSit(c,st.P,SCS_UP);seatCalfSit(c,st.P,lerp(y,SCS_UP,smooth(k)));}},
     {d:.6,pose:c=>seatCalfSit(c,st.P,SCS_UP,true)},{d:.9,pose:c=>standPose(c,{x:.42,z:-12.1,h:Math.PI/2}),props:plantFeet(st,standFeet({x:.42,z:-12.1,h:Math.PI/2}))},{walk:[.8,-12.1],d:.6}]};
@@ -3231,7 +3272,7 @@ function coachSpotOf(e){const st=STATIONS[e.station],cs=e.coachSpot;const c=toW(
   const cands=[[cs.p[0],cs.p[1]],[-cs.p[0],cs.p[1]],[-cs.p[0],-24-cs.p[1]],[cs.p[0],-24-cs.p[1]],[1.5,-12],[-1.5,-12],[0,-13.5],[1.2,-13.2],[-1.2,-13.2]].map(q=>toW(st,V(q[0],0,q[1])));let best=null,ba=-1e9;
   for(const p of cands){if(!navFree(p.x,p.z))continue;const toward=V(p.x-c.x,0,p.z-c.z).dot(d);if(toward<=.15){best=p;break;}if(-toward>ba){ba=-toward;best=p;}}
   best=best||cands[0];return {p:best,h:Math.atan2(c.x-best.x,c.z-best.z)};}
-function coachTo(e,done){const s=coachSpotOf(e);goTo(coach,s.p,{face:s.h,speed:1.3,done});}
+function coachTo(e,done){const s=coachSpotOf(e);goTo(coach,s.p,{face:s.h,speed:WALK_SPEED*1.04,done});}
 function walkStatus(t){$('#walk').hidden=!t;$('#walkTxt').textContent=t||'';}
 function goExercise(k){const e=EXS[k];if(!e)return;closePanels();showPlan(false);pending=k;SES.i=Math.max(0,SES.plan?SES.plan.items.findIndex(it=>it[0]===k):0);renderPlanList();
   const isBar=e.needs==='bar'||e.needs==='ez';const start=()=>{if(isBar)fetchBar(e,()=>approach(e));else if(e.needs)fetchDB(e,()=>approach(e));else approach(e);};
@@ -3537,11 +3578,16 @@ function update(dtReal){const dt0=paused&&flow==='exercise'?0:dtReal;const dt=fl
   for(const c of [hero,coach]){const a=c.act_||{};if(a.kind!=='seq'&&a.kind!=='pose')actTick(c,dt);}
   for(const m of mixers)m.update(dt);
   for(const c of [hero,coach]){const a=c.act_||{};if(a.kind==='seq')seqTick(c,dt);else postClip(c,dt);}
+  for(const c of [hero,coach,twin,...extras])c&&footBlobs(c);
   if(ST&&ST.P&&ST.P.tick)ST.P.tick(); // a station's parts that follow the lifter (cables on handles being carried)
   if(coach&&coach.act_&&coach.act_.kind==='idle'&&flow!=='ask'&&flow!=='greet'&&hero)turnTo(coach,Math.atan2(hero.pos.x-coach.pos.x,hero.pos.z-coach.pos.z),dt,1.5);
   if(sayTimer>0){sayTimer-=dtReal;if(sayTimer<=0)say('',false);}
   // flow
-  if(flow==='street'){followCam(hero,3.6,1.8,hero.pos.z>3?1.4:0);if(ft>.5&&ft<4)caption('Monday, 9:40 pm. Most people went home.');else caption('');
+  if(flow==='landing'&&hero){landingCam();}
+  else if(flow==='street'&&swing&&swing.t<2.6){swing.t+=dt;const k=smooth(clamp(swing.t/2.6,0,1));const a1=2*Math.PI;const a=swing.a0+angDiff(a1,swing.a0)*k;
+    const r=lerp(swing.r,3.6,k);cam.tPos.set(hero.pos.x+Math.sin(a)*r,lerp(swing.y,1.8,k),hero.pos.z+Math.cos(a)*r);cam.pos.copy(cam.tPos);cam.tLook.set(hero.pos.x,lerp(1.1,1.3,k),hero.pos.z);
+    if(ft>.5&&ft<4)caption('Monday, 9:40 pm. Most people went home.');}
+  else if(flow==='street'){followCam(hero,3.6,1.8,hero.pos.z>3?1.4:0);if(ft>.5&&ft<4)caption('Monday, 9:40 pm. Most people went home.');else caption('');
     if(hero.act_.kind==='idle'){setFlow('greet');caption('');}}
   else if(flow==='greet'){const a=ft*.25;cam.tPos.set(INSIDE.x-2.6,1.9,INSIDE.z+2.2);cam.tLook.set(MEET.x,1.35,MEET.z-.6);
     if(ft<2.6)caption('The lights know the way.');else caption('');
@@ -3576,8 +3622,17 @@ function finishWorkout(){setFlow('done');const g=SES.group,p=SES.plan;const sets
    <div class="prow"><button class="btn" id="again">Train another muscle</button><button class="btn ghost sm" id="replay">Back to the plan</button></div>`;
   $('#again').onclick=()=>{el.hidden=true;askAgain();};$('#replay').onclick=()=>{el.hidden=true;SES.done=new Set();setFlow('plan');showPlan(true);};}
 $('#fast').addEventListener('click',()=>{fastF=fastF>1?1:4;$('#fast').textContent=fastF>1?'Normal speed':'Fast-forward ››';});
+function landingCam(){const h=hero.pos,wide=innerWidth>760&&innerWidth>innerHeight;
+  if(wide){cam.tPos.set(h.x-.35,1.32,h.z+3.15);cam.tLook.set(h.x-.95,1.08,h.z);}
+  else{cam.tPos.set(h.x,1.25,h.z+3.9);cam.tLook.set(h.x,1.62,h.z);}}
+// the street frame: canonical == world, so scripted steps (turns) can be used out here
+let STREET=null;
+function streetFrame(){if(!STREET){const g=new THREE.Group();scene.add(g);g.updateMatrixWorld(true);STREET={g,q:qY(0),rot:0};}return STREET;}
+let swing=null; // camera arc from the landing view (in front of the hero) round to behind them
 function startStory(){$('#landing').classList.add('out');$('#skip').hidden=false;setFlow('street');
-  goTo(hero,INSIDE,{face:Math.PI,speed:1.3});}
+  const d=V().subVectors(cam.pos,hero.pos);swing={a0:Math.atan2(d.x,d.z),r:Math.hypot(d.x,d.z),y:cam.pos.y,t:0};
+  // turn round on the spot to face the door, then walk in
+  runSeq(hero,streetFrame(),[...turnSteps(hero.pos.x,hero.pos.z,hero.heading,Math.PI),{call:c=>{c.heading=Math.PI;}}],()=>goTo(hero,INSIDE,{face:Math.PI,speed:WALK_SPEED*1.04,land:1}));}
 function skipIntro(){if(flow!=='street'&&flow!=='greet')return;$('#skip').hidden=true;lightsOn=1;caption('');hero.pos.copy(INSIDE);hero.heading=Math.PI;place(hero);hero.act_={kind:'idle'};play(hero,'idle',0);
   coach.pos.copy(MEET);coach.heading=Math.atan2(INSIDE.x-MEET.x,INSIDE.z-MEET.z);place(coach);coach.act_={kind:'idle'};play(coach,'idle',0);coach._called=1;cam.pos.set(INSIDE.x-2.4,1.75,INSIDE.z+1.6);setFlow('ask');}
 $('#go').addEventListener('click',startStory);$('#skip').addEventListener('click',skipIntro);
@@ -3588,21 +3643,21 @@ addEventListener('keydown',e=>{if(flow==='exercise'){if(e.code==='Space'){setPau
 
 // ---------------------------------------------------------------- loading
 function parseGLB(b64){return new Promise((res,rej)=>{const s=atob(b64);const u=new Uint8Array(s.length);for(let i=0;i<s.length;i++)u[i]=s.charCodeAt(i);loader.parse(u.buffer,'',res,rej);});}
-async function boot(){try{const G={};for(const n of['lifter','coach','member']){$('#loading').textContent='Loading the gym · '+n;G[n]=await parseGLB(window.GLB[n]);}
+async function boot(){try{const G={};for(const n of['lifter','coach','member']){G[n]=await parseGLB(window.GLB[n]);}
     hero=makeChar(G.lifter,MU);measure(hero);paintMuscles(hero);hero.root.updateMatrixWorld(true);
     twin=makeChar(G.lifter,MU2);twin.mats.forEach(m=>patchMuscleMat(m,MU2));twin.root.visible=false;stopClips(twin);
     coach=makeChar(G.coach,makeMU());
     layoutGym();
     const runner=makeChar(G.member,makeMU());runner.pos.set(8.5,.21,-21.8);runner.heading=Math.PI;place(runner);play(runner,'run',0,.85);extras.push(runner);
     buildNav();
-    hero.pos.copy(HERO_START);hero.heading=Math.PI;place(hero);play(hero,'idle',0);hero.act_={kind:'idle'};
+    hero.pos.copy(HERO_START);hero.heading=0;place(hero);play(hero,'idle',0);hero.act_={kind:'idle'};
     coach.pos.set(2.2,0,-15.2);coach.heading=Math.PI;place(coach);play(coach,'idle',0);coach.act_={kind:'idle'};
     renderChips();
     const nEx=Object.keys(EXS).length,nM=Object.values(EXS).reduce((t,e)=>t+Object.keys(e.forms).length-1,0);
-    document.querySelector('.credit').firstChild.textContent=`${Object.keys(GROUPS).length} muscle groups · ${nEx} exercises · ${nM} common mistakes. People made with MakeHuman (CC0); 3D clothing by Elvaerwyn, Mindfront and punkduck (CC-BY 4.0).`;
-    $('#loading').textContent='';$('#go').disabled=false;$('#go').textContent='Walk me in →';
-    cam.pos.set(3.4,1.7,15.5);cam.look.set(0,2.6,0);cam.tPos.copy(cam.pos);cam.tLook.copy(cam.look);
-    window.__ready=true;}catch(e){console.error(e);$('#loading').textContent='The gym didn’t load: '+(e&&e.message||e);}}
+    $('#credit').textContent=`${Object.keys(GROUPS).length} muscle groups · ${nEx} exercises · ${nM} common mistakes. People made with MakeHuman (CC0); 3D clothing by Elvaerwyn, Mindfront and punkduck (CC-BY 4.0); walking and idle motion capture from the 100STYLE dataset by Mason, Starke and Komura (CC BY 4.0).`;
+    $('#go').disabled=false;$('#go').textContent='Walk me in →';
+    landingCam();cam.pos.copy(cam.tPos);cam.look.copy(cam.tLook);
+    window.__ready=true;}catch(e){console.error(e);$('#go').textContent='The gym didn’t load. Reload the page';}}
 if(!/[?&]paint/.test(location.search))boot();
 const clock=new THREE.Clock();
 // in test mode the page renders only after the test moves time on (keeps headless runs fast)
