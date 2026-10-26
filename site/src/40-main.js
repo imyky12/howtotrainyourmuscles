@@ -6,7 +6,8 @@ function update(dtReal){const dt0=paused&&flow==='exercise'?0:dtReal;const dt=fl
   // lights: the gym lights flicker on, row by row, once the lifter steps in
   const tl=flow==='landing'||flow==='street'?0:1;if(tl)lightsOn=clamp(lightsOn+dt*.55,0,1);
   tubes.forEach(t=>{const on=lightsOn*7-t.userData.row;const flick=on>0&&on<1?(Math.random()<.5?0:1):on>=1?1:0;t.material.emissiveIntensity=flick*1.6;});
-  inLights.forEach(([l,max])=>{l.intensity=max*smooth(clamp(lightsOn*1.2,0,1));});M.window.emissiveIntensity=.02+lightsOn*.55;
+  inLights.forEach(([l,max])=>{l.intensity=max*smooth(clamp(lightsOn*1.2,0,1));});
+  for(const c of [hero,coach,twin,...extras])if(c&&c.faceLight)c.faceLight.intensity=FACE_FILL*(.3+.15*smooth(clamp(lightsOn*1.2,0,1)));M.window.emissiveIntensity=.02+lightsOn*.55;
   signMat.emissiveIntensity=2.2*(.9+.1*Math.sin(performance.now()*.004));
   IN.traverse(o=>{if(o.userData.fan)o.userData.blades.rotation.z+=dt*9;});
   // automatic sliding doors: open when someone is within 2.2 m

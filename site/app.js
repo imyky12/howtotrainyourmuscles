@@ -157,7 +157,7 @@ function charMat(m){const n=m.name||'';if(!m.isMeshStandardMaterial)return;
     m.color.multiply(new THREE.Color(1.03,.985,.95));}
   else if(/^Hair/.test(n)){ // alpha-tested cards: sorted with the body, no see-through halo, slight sheen along the strands
     m.transparent=false;m.alphaTest=.42;m.depthWrite=true;m.roughness=.48;if('sheen' in m){m.sheen=.4;m.sheenRoughness=.4;m.sheenColor.setRGB(.35,.28,.22);}}
-  else if(/^Eyes/.test(n)){m.roughness=.12;if('specularIntensity' in m)m.specularIntensity=1;}
+  else if(/^Eyes/.test(n)){m.roughness=.15;if('specularIntensity' in m)m.specularIntensity=1;m.envMapIntensity=1.5;} // wet eyes: the room's lights show as catchlights
   else if(/^Eye(brows|lashes)/.test(n)){m.depthWrite=false;}
   else if(/shoe/i.test(n)){m.roughness=.62;}
   else if(/^Cloth/.test(n)){ // knit and synthetic gym fabric: matte with a soft grazing-angle sheen
@@ -182,6 +182,7 @@ function footBlobs(c){if(!c.blobs||!c.root.visible)return;c.root.updateMatrixWor
 function inflateCloth(o){const n=(o.material&&o.material.name)||'';const g=o.geometry;if(!/^Cloth.*(shirt|tank|top)/i.test(n)||g.userData.inflated)return;
   const d=/crude_t-shirt/.test(n)?.009:.005;const P=g.attributes.position,N=g.attributes.normal;if(!N)return;
   for(let i=0;i<P.count;i++)P.setXYZ(i,P.getX(i)+N.getX(i)*d,P.getY(i)+N.getY(i)*d,P.getZ(i)+N.getZ(i)*d);P.needsUpdate=true;g.computeBoundingSphere();g.userData.inflated=true;}
+const FACE_FILL=3.2; // at full gym light; the street gets a third of it (see update)
 function makeChar(g,U){
   const m=SkeletonUtils.clone(g.scene);
   const bones={};const mats=[];const meshes=[];
@@ -193,6 +194,9 @@ function makeChar(g,U){
   const rest={};for(const k in bones)rest[k]=bones[k].quaternion.clone();
   const hipRest=bones.Hips.position.clone();
   const c={root:m,bones,rest,hipRest,mixer,act,mats,meshes,cur:null,heading:0,pos:V(),speed:0,hold:[],U};
+  // a soft warm key from the front and a little above, riding with the head (like a camera-side key light): the face reads bright
+  // and the eyes catch a light; 1.1 m away so it falls off gently over face, chest and legs instead of lighting a mask
+  const fl=new THREE.PointLight(0xffeedd,FACE_FILL,0,2);fl.position.set(0,25,110);bones.Head.add(fl);c.faceLight=fl; // (bone units are cm)
   m.updateMatrixWorld(true);c.ankY0=wpos(bones.LeftFoot).y;c.toeY0=wpos(bones.LeftToeBase).y;addFootBlobs(c);
   scene.add(m);return c;}
 // one clip plays at a time, at full weight; the pose it takes over from fades out over a snapshot (applyFade), so the
@@ -596,12 +600,12 @@ function walkTick(c,dt){const a=c.act_;const rem=a.L-a.s;
   // o.land: over the last 0.7 m the clip follows the distance (no skating) and stops as the swinging foot passes the planted one
   const rm=a.L-a.s;const wa=c.act.walk;
   if(a.land&&c.cur!==wa){play(c,'walk',.3,Math.max(.2,a.v/WALK_STRIDE));wa.time=c._wph??WALK_PASS[0];} // a landed walk carries on from the phase it stopped at
-  if(a.land&&!a.wk&&c.cur===wa&&rm<1.4){const m=walkLand(c,wa.time,rm/WALK_STRIDE).m;if((m>.78&&m<1.02)||(rm<.3&&m<1.3))a.rem0=Math.max(rm,1e-3);} // start where the stride lands without hurrying (never more than 1.3x: a hurried mocap swing flicks the foot 25 cm in a frame; then the walk just ends)
+  if(a.land&&!a.wk&&c.cur===wa&&rm<1.4){const m=walkLand(c,wa.time,rm/WALK_STRIDE).m;if((m>.6&&m<1.25)||(rm<.3&&m<1.3))a.rem0=Math.max(rm,1e-3);} // start where the stride lands without hurrying (never more than 1.3x: a hurried mocap swing flicks the foot 25 cm in a frame; then the walk just ends)
   if(a.land&&a.rem0&&c.cur===wa){walkSync(c,a,1-rm/a.rem0,a.rem0,false);}else play(c,'walk',.3,Math.max(.2,a.v/WALK_STRIDE));
   if(a.s>=a.L-.005){if(a.face!==undefined&&Math.abs(angDiff(a.face,c.heading))>.06){c.act_={kind:'turn',h:a.face,done:a.done,land:a.land};}
     else{c.act_={kind:'idle'};play(c,'idle',.4);a.done&&a.done();}}}
 function turnTick(c,dt){const a=c.act_;if(a.h0===undefined)a.h0=Math.abs(angDiff(a.h,c.heading));const d=angDiff(a.h,c.heading);const st=Math.sign(d)*Math.min(Math.abs(d),dt*(a.land?3.0:3.4));c.heading+=st;place(c);
-  if(a.land)walkSync(c,a,a.h0>1e-3?1-Math.abs(angDiff(a.h,c.heading))/a.h0:1,a.h0*.3,false);else play(c,'walk',.25,.55);if(Math.abs(d)<.03){c.heading=a.h;place(c);c.act_={kind:'idle'};play(c,'idle',.35);a.done&&a.done();}}
+  if(a.land)walkSync(c,a,a.h0>1e-3?1-Math.abs(angDiff(a.h,c.heading))/a.h0:1,a.h0*.3,false);else{const fresh=c.cur!==c.act.walk;play(c,'walk',.25,.38);if(fresh)c.act.walk.time=WALK_PASS[0];}if(Math.abs(d)<.03){c.heading=a.h;place(c);c.act_={kind:'idle'};play(c,'idle',.35);a.done&&a.done();}}
 
 // ---- scripted sequences
 // steps: {d, pose:(c,k)=>void}  blend from the previous pose to pose(), eased   (pose solved in st's canonical frame)
@@ -626,7 +630,7 @@ function seqTick(c,dt){const a=c.act_;const S=a.steps[a.i];if(!S)return;a.t+=dt;
     const v=Math.max(.35,6*k*(1-k)/1.5);if(S.land){walkSync(c,a,smooth(k),a.from.distanceTo(a.to)*(S.back?-1:1));if(!a.wk.dfix){a.wk.dfix=1;a.d=Math.max(a.d,Math.abs(a.wk.T-a.wk.t0)*1.5/1.3);}} // (a short landed step is stretched so the clip never runs faster than 1.3x: a quicker step flicks the swinging foot)else play(c,'walk',.25,(S.back?-1:1)*clamp(a.from.distanceTo(a.to)*6*k*(1-k)/a.d/WALK_STRIDE,.3,1.35)); // the clip at the body's speed (feet planted), never hurried past a brisk walkc._ph=(c._ph||0)+dt*(S.back?3:4)*v;
     clipPost(c,dt);if(k>=1){play(c,'idle',.3);nextStep(c);}return;}
   if(S.turn!==undefined){if(a.h0===undefined)a.h0=Math.abs(angDiff(a.h,c.heading));const d=angDiff(a.h,c.heading);c.heading+=Math.sign(d)*Math.min(Math.abs(d),dt*3.2);place(c);
-    if(S.land)walkSync(c,a,a.h0>1e-3?1-Math.abs(angDiff(a.h,c.heading))/a.h0:1,a.h0*.3);else play(c,'walk',.25,.7);clipPost(c,dt);if(Math.abs(d)<.03){c.heading=a.h;place(c);play(c,'idle',.3);a.h0=undefined;nextStep(c);}return;}
+    if(S.land)walkSync(c,a,a.h0>1e-3?1-Math.abs(angDiff(a.h,c.heading))/a.h0:1,a.h0*.3);else{const fresh=c.cur!==c.act.walk;play(c,'walk',.25,.49);if(fresh)c.act.walk.time=WALK_PASS[0];}clipPost(c,dt);if(Math.abs(d)<.03&&(S.land||stepDone(c,a))){c.heading=a.h;place(c);play(c,'idle',.3);a.h0=undefined;a.pass=undefined;nextStep(c);}return;}
   const k=clamp(a.t/S.d,0,1);
   if(S.anim){S.anim(c,k);frame(c,a.st);}
   else{S.pose(c,k);frame(c,a.st);const B=snapshot(c);blendTo(c,a.from,B,S.lin?k:ease(k));}
@@ -637,9 +641,13 @@ function seqTick(c,dt){const a=c.act_;const S=a.steps[a.i];if(!S)return;a.t+=dt;
 // that foot down instead of the clip freezing mid-stride. A walk that starts from a still pose starts from that phase too.
 // (the walk clip is a mocap gait cycle, see humans/README.md; these numbers are measured on it by the retarget script: every
 // character's clip is time-scaled to the same WALK_STRIDE, so the clip played at timeScale v/WALK_STRIDE keeps the feet planted)
-const WALK_STRIDE=0.916; // metres of travel per second of the walk clip (how fast its planted foot moves back)
-const WALK_PASS=[0.438,1.094]; // clip times where the swinging foot passes the planted one
-const WALK_SPEED=1.3; // cruising speed along a path (m/s): the clip then plays at WALK_SPEED/WALK_STRIDE
+// a turn on the spot finishes its step: it stops when the walk clip next brings the feet together (a foot pass), not mid-swing
+function stepDone(c,a){const w=c.act.walk,t=w.time,L=w.getClip().duration;if(c.cur!==w)return true;
+  if(a.pass===undefined){let best=9;for(const P of WALK_PASS)for(const T of [P,P+L]){const dd=T-t;if(dd>=0&&dd<best)best=dd;}a.pass=best;a.tPrev=t;a.acc=0;}
+  let dt=t-a.tPrev;if(dt<0)dt+=L;a.acc+=dt;a.tPrev=t;return a.acc>=a.pass-1e-3;}
+const WALK_STRIDE=1.312; // metres of travel per second of the walk clip (how fast its planted foot moves back)
+const WALK_PASS=[0.368,0.921]; // clip times where the swinging foot passes the planted one
+const WALK_SPEED=1.5; // cruising speed along a path (m/s): the clip then plays at WALK_SPEED/WALK_STRIDE
 // the pass-phase clip time to finish at, from clip time t0 with A0 clip-seconds of travel ahead: {T, m = how much faster the clip runs}
 // (a hurried clip swings the foot fast, so slowing down is preferred to speeding up, and more than a third faster is never
 // chosen: a stalled clip (a pivot on the spot) is better than a flicked foot)
@@ -649,11 +657,15 @@ function walkLand(c,t0,A0){const L=c.act.walk._clip.duration;let best=null,bs=1e
   return {T:best??t0,m:bm};}
 // (now: pose the bones at once; walkTick/turnTick run before the mixer update, which poses them, so they leave it false)
 function walkSync(c,a,ks,dist,now=true){const act=c.act.walk,L=act._clip.duration;
-  if(!a.wk){const fresh=c.cur!==act;play(c,'walk',.25,0);if(fresh)act.time=c._wph??WALK_PASS[0];const t0=act.time;a.wk={t0,T:walkLand(c,t0,dist/WALK_STRIDE).T};}
+  if(!a.wk){const fresh=c.cur!==act;play(c,'walk',.25,0);if(fresh)act.time=c._wph??WALK_PASS[0];const t0=act.time;const r=walkLand(c,t0,dist/WALK_STRIDE);a.wk={t0,T:r.m>1.35?t0:r.T};} // (no pass within reach, e.g. a tiny turn: the clip holds instead of racing to one)
   else play(c,'walk',.25,0);
   // (the mixer only writes a bone whose value changed since the last frame: a clip held at one time would let a fade or an
   // override stick, so the time is nudged by a tenth of a millisecond every other frame)
-  c._wflip=!c._wflip;const t=a.wk.t0+(a.wk.T-a.wk.t0)*ks+(c._wflip?1e-4:0);act.time=((t%L)+L)%L;c._wph=act.time;if(now)c.mixer.update(0);}
+  c._wflip=!c._wflip;let t=a.wk.t0+(a.wk.T-a.wk.t0)*ks+(c._wflip?1e-4:0);
+  // never more than 0.06 clip-s in one frame (1.6x the cruising rate): a sync target that jumps (a walk ending on a short last
+  // stretch, a turn right after it) eases over instead of snapping the legs to another phase
+  if(c.cur===act){let dd=t-act.time;dd-=Math.round(dd/L)*L;if(Math.abs(dd)>.06){t=act.time+Math.sign(dd)*.06;a.wk.t0+=t-(a.wk.t0+(a.wk.T-a.wk.t0)*ks);}}
+  act.time=((t%L)+L)%L;c._wph=act.time;if(now)c.mixer.update(0);}
 function actTick(c,dt){const a=c.act_||{kind:'idle'};
   if(a.kind==='walk')walkTick(c,dt);else if(a.kind==='turn')turnTick(c,dt);else if(a.kind==='teleport'){c.pos.copy(a.target);if(a.o.face!==undefined)c.heading=a.o.face;place(c);c.act_={kind:'idle'};a.o.done&&a.o.done();}}
 // after the mixer: apply overrides that depend on the clip pose
@@ -2788,7 +2800,7 @@ ENTRY.dipA={land:1,pre:[0,-10.8],face:Math.PI,
   enter:(st,e)=>[...turnSteps(0,-10.8,Math.PI,0),{walk:[0,-11.3],back:true,land:1,d:1.4},{d:.6,anim:settle(c=>standPose(c,{z:-11.3,armOut:.6}))},...shuffle(-11.3,-11.95),{d:.6,anim:settle(dipHandsOver)},{d:.5,anim:settle(c=>{standPose(c,{z:-11.95,arms:'none'});dipHands(c);})},{d:.7,anim:settle(exP(1,3))}],
   leave:(st,e)=>[{d:.8,anim:settle(c=>{standPose(c,{z:-11.95,arms:'none'});dipHands(c);})},{d:.5,anim:settle(dipHandsOver)},{d:.5,anim:settle(c=>standPose(c,{z:-11.95,armOut:.6}))},...shuffle(-11.95,-11.3),{walk:[0,-10.8],land:1,d:1.4}]};
 ENTRY.inclineCurl={land:1,pre:[0,-10.45],face:Math.PI,
-  enter:(st,e)=>[...turnSteps(0,-10.45,Math.PI,0,standDB),{call:c=>{c.carry=null;}},{d:1.2,anim:(c,k)=>{st.P.setAngle(lerp(st.P._ang??30,INC_CURL,smooth(k)));standDB(c,{z:-10.45});}},{call:()=>{st.P._ang=INC_CURL;}},{walk:[0,-11.08],back:true,land:1,d:1.1},
+  enter:(st,e)=>[...turnSteps(0,-10.45,Math.PI,0,standDB,.5),{call:c=>{c.carry=null;}},{d:1.2,anim:(c,k)=>{st.P.setAngle(lerp(st.P._ang??30,INC_CURL,smooth(k)));standDB(c,{z:-10.45});}},{call:()=>{st.P._ang=INC_CURL;}},{walk:[0,-11.08],back:true,land:1,d:1.1},
     {d:1.0,anim:settle(c=>{st.P.setAngle(INC_CURL);benchSitDB(c,{lean:2});})},{d:1.3,anim:settle(exP(0,1))},{d:1.0,anim:exFrom(0,1)}],
   leave:(st,e)=>[{d:.8,pose:exP(0,1)},{d:1.2,anim:settle(c=>benchSitDB(c,{lean:2}))},{d:1.0,anim:settle(c=>standDB(c,{z:-11.08}))},{call:c=>{c.carry='db';}},{walk:[0,-10.45],land:1,d:1.0}]};
 ENTRY.concentration={land:1,pre:[0,-10.45],face:Math.PI,
@@ -3587,7 +3599,8 @@ function update(dtReal){const dt0=paused&&flow==='exercise'?0:dtReal;const dt=fl
   // lights: the gym lights flicker on, row by row, once the lifter steps in
   const tl=flow==='landing'||flow==='street'?0:1;if(tl)lightsOn=clamp(lightsOn+dt*.55,0,1);
   tubes.forEach(t=>{const on=lightsOn*7-t.userData.row;const flick=on>0&&on<1?(Math.random()<.5?0:1):on>=1?1:0;t.material.emissiveIntensity=flick*1.6;});
-  inLights.forEach(([l,max])=>{l.intensity=max*smooth(clamp(lightsOn*1.2,0,1));});M.window.emissiveIntensity=.02+lightsOn*.55;
+  inLights.forEach(([l,max])=>{l.intensity=max*smooth(clamp(lightsOn*1.2,0,1));});
+  for(const c of [hero,coach,twin,...extras])if(c&&c.faceLight)c.faceLight.intensity=FACE_FILL*(.3+.15*smooth(clamp(lightsOn*1.2,0,1)));M.window.emissiveIntensity=.02+lightsOn*.55;
   signMat.emissiveIntensity=2.2*(.9+.1*Math.sin(performance.now()*.004));
   IN.traverse(o=>{if(o.userData.fan)o.userData.blades.rotation.z+=dt*9;});
   // automatic sliding doors: open when someone is within 2.2 m

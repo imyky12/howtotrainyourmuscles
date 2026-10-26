@@ -12,7 +12,7 @@ function charMat(m){const n=m.name||'';if(!m.isMeshStandardMaterial)return;
     m.color.multiply(new THREE.Color(1.03,.985,.95));}
   else if(/^Hair/.test(n)){ // alpha-tested cards: sorted with the body, no see-through halo, slight sheen along the strands
     m.transparent=false;m.alphaTest=.42;m.depthWrite=true;m.roughness=.48;if('sheen' in m){m.sheen=.4;m.sheenRoughness=.4;m.sheenColor.setRGB(.35,.28,.22);}}
-  else if(/^Eyes/.test(n)){m.roughness=.12;if('specularIntensity' in m)m.specularIntensity=1;}
+  else if(/^Eyes/.test(n)){m.roughness=.15;if('specularIntensity' in m)m.specularIntensity=1;m.envMapIntensity=1.5;} // wet eyes: the room's lights show as catchlights
   else if(/^Eye(brows|lashes)/.test(n)){m.depthWrite=false;}
   else if(/shoe/i.test(n)){m.roughness=.62;}
   else if(/^Cloth/.test(n)){ // knit and synthetic gym fabric: matte with a soft grazing-angle sheen
@@ -37,6 +37,7 @@ function footBlobs(c){if(!c.blobs||!c.root.visible)return;c.root.updateMatrixWor
 function inflateCloth(o){const n=(o.material&&o.material.name)||'';const g=o.geometry;if(!/^Cloth.*(shirt|tank|top)/i.test(n)||g.userData.inflated)return;
   const d=/crude_t-shirt/.test(n)?.009:.005;const P=g.attributes.position,N=g.attributes.normal;if(!N)return;
   for(let i=0;i<P.count;i++)P.setXYZ(i,P.getX(i)+N.getX(i)*d,P.getY(i)+N.getY(i)*d,P.getZ(i)+N.getZ(i)*d);P.needsUpdate=true;g.computeBoundingSphere();g.userData.inflated=true;}
+const FACE_FILL=3.2; // at full gym light; the street gets a third of it (see update)
 function makeChar(g,U){
   const m=SkeletonUtils.clone(g.scene);
   const bones={};const mats=[];const meshes=[];
@@ -48,6 +49,9 @@ function makeChar(g,U){
   const rest={};for(const k in bones)rest[k]=bones[k].quaternion.clone();
   const hipRest=bones.Hips.position.clone();
   const c={root:m,bones,rest,hipRest,mixer,act,mats,meshes,cur:null,heading:0,pos:V(),speed:0,hold:[],U};
+  // a soft warm key from the front and a little above, riding with the head (like a camera-side key light): the face reads bright
+  // and the eyes catch a light; 1.1 m away so it falls off gently over face, chest and legs instead of lighting a mask
+  const fl=new THREE.PointLight(0xffeedd,FACE_FILL,0,2);fl.position.set(0,25,110);bones.Head.add(fl);c.faceLight=fl; // (bone units are cm)
   m.updateMatrixWorld(true);c.ankY0=wpos(bones.LeftFoot).y;c.toeY0=wpos(bones.LeftToeBase).y;addFootBlobs(c);
   scene.add(m);return c;}
 // one clip plays at a time, at full weight; the pose it takes over from fades out over a snapshot (applyFade), so the
