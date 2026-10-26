@@ -16,6 +16,7 @@ function update(dtReal){const dt0=paused&&flow==='exercise'?0:dtReal;const dt=fl
   for(const c of [hero,coach]){const a=c.act_||{};if(a.kind!=='seq'&&a.kind!=='pose')actTick(c,dt);}
   for(const m of mixers)m.update(dt);
   for(const c of [hero,coach]){const a=c.act_||{};if(a.kind==='seq')seqTick(c,dt);else postClip(c,dt);}
+  if(ST&&ST.P&&ST.P.tick)ST.P.tick(); // a station's parts that follow the lifter (cables on handles being carried)
   if(coach&&coach.act_&&coach.act_.kind==='idle'&&flow!=='ask'&&flow!=='greet'&&hero)turnTo(coach,Math.atan2(hero.pos.x-coach.pos.x,hero.pos.z-coach.pos.z),dt,1.5);
   if(sayTimer>0){sayTimer-=dtReal;if(sayTimer<=0)say('',false);}
   // flow

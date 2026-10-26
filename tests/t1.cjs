@@ -6,7 +6,7 @@ const W=+(process.env.W||1280),H=+(process.env.H||760),pre=process.env.PRE||'s';
   const p = await b.newPage({ viewport: { width: W, height: H } });
   p.on('pageerror', e => console.log('PAGEERR', e.message, (e.stack||'').split('\n').slice(1,3).join(' | ')));
   p.on('console', m => { if (m.type()==='error'||m.type()==='warning') console.log(m.type(), m.text().slice(0,300)); });
-  await p.goto('http://localhost:8767/index.html?test');
+  await p.goto('http://localhost:'+(process.env.PORT||8767)+'/index.html?test');
   await p.waitForFunction(() => window.__ready, null, { timeout: 120000 });
   const snap = async n => { await p.waitForTimeout(200); await p.screenshot({ path: `out/${pre}-${n}.png` }); console.log('shot',n, JSON.stringify(await p.evaluate(()=>__api.state))); };
   const adv = s => p.evaluate(s => __advance(s), s);

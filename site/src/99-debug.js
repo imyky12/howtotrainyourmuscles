@@ -15,3 +15,5 @@ if(/[?&]paint/.test(location.search)){
     inLights.forEach(([l,m])=>l.intensity=m);fill.intensity=1.5;
     composer.render();window.__ready=true;})();
 }
+// test only: evaluate an expression in the app's module scope (poses, stations, helpers)
+if(TEST)window.__eval=s=>eval(s);

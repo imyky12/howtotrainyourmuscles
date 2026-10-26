@@ -7,7 +7,7 @@ const KEYS=(process.env.EXS||'').split(',').filter(Boolean);
   const p = await b.newPage({ viewport: { width: W, height: H } });
   p.on('pageerror', e => console.log('PAGEERR', e.message, (e.stack||'').split('\n').slice(1,3).join(' | ')));
   p.on('console', m => { if (m.type()==='error'||m.type()==='warning') console.log(m.type(), m.text().slice(0,300)); });
-  await p.goto('http://localhost:8767/index.html?test');
+  await p.goto('http://localhost:'+(process.env.PORT||8767)+'/index.html?test');
   await p.waitForFunction(() => window.__ready, null, { timeout: 120000 });
   const snap = async n => { if(process.env.NOSHOT)return; await p.waitForTimeout(100); await p.screenshot({ path: `out/${pre}-${n}.png` }); };
   for(const k of (KEYS.length?KEYS:await p.evaluate(()=>Object.keys(__api.EXS)))){

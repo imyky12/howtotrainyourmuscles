@@ -17,8 +17,8 @@ function poseBar(c,F,b,u,P){ // barbell on a flat / incline / decline bench: ver
   for(const s of[1,-1])armTo(c,sideOf(s),hands[s>0?0:1],{hd:PRESS_HD,pn:V(0,0,1),pole:torsoPole(s,f,ang)});
   P.bar.position.addVectors(hands[0],hands[1]).multiplyScalar(.5);P.bar.quaternion.identity();return u;}
 // lying on the bench holding the bar at given hand points (unrack / rerack)
-function poseBarHands(c,P,hands,ang=0,feet){P.setAngle&&P.setAngle(ang/DEG);lieBody(c,{angle:ang,feet});const f=52*DEG;
-  for(const s of[1,-1])armTo(c,sideOf(s),hands[s>0?0:1],{hd:PRESS_HD,pn:V(0,0,1),pole:torsoPole(s,f,ang)});
+function poseBarHands(c,P,hands,ang=0,feet,curl=1){P.setAngle&&P.setAngle(ang/DEG);lieBody(c,{angle:ang,feet});const f=52*DEG; // curl < 1: fingers still open
+  for(const s of[1,-1])armTo(c,sideOf(s),hands[s>0?0:1],{hd:PRESS_HD,pn:V(0,0,1),pole:torsoPole(s,f,ang),curl});
   P.bar.position.addVectors(hands[0],hands[1]).multiplyScalar(.5);P.bar.quaternion.identity();}
 function lockHands(deg=0,g=GRIP){const S=lieShoulderAt(deg);const y=S.y+Math.sqrt(Math.pow((D.arm+D.fore)*.97,2)-Math.pow(g-D.shx,2))+.078*D.s;return [V(g,y,S.z),V(-g,y,S.z)];}
 function poseDB(c,F,b,u,P){ // two dumbbells: apart at the bottom, converging over the shoulders at the top
@@ -64,16 +64,36 @@ function poseCable(c,F,b,u,P){ // standing cable fly; high = pulleys above the h
     const el=F.bend?lerp(98,165,smooth(uu)):F.curl?lerp(160,62,smooth(uu)):160;
     const ct=S.clone().addScaledVector(dir,elbowD(el)+.07*D.s);let pn=endT.clone().sub(ct);if(pn.length()<.06)pn=V(-s,0,0);
     armTo(c,sideOf(s),ct,{hd:dir,pn:pn.normalize().add(V(-s*.3,0,0)),pole:V(s*.3,-1,-.4),follow:true});
-    P.h[i].position.copy(ct);setRod(P.cable[i],P.pul[i].position,ct);}
+    P.h[i].position.copy(ct);setRod(P.cable[i],P.pulL(i),ct);}
   P.stackTop.forEach(t=>t.position.y=.3*uu);return u;}
 const PU_HZ=-12.42;
-function posePush(c,F,b,u,P){ // push-up: toes and hands fixed on the floor
+// ---- feet on the mat on the balls of the feet (push-up, plank, kneeling with the toes tucked)
+const BALL_Y=.035; // height of the ball-of-foot joint when it rests on the mat (the sole and the toes under it)
+// the toes' own direction in the toe bone's frame (horizontal forward in the rest pose)
+function toeAxis(c,side){c._toeAx=c._toeAx||{};if(c._toeAx[side])return c._toeAx[side];const tb=c.bones[side+'ToeBase'];const q=new THREE.Quaternion();
+  for(let o=tb;o&&o!==c.root;o=o.parent){const n=Object.keys(c.bones).find(k=>c.bones[k]===o);q.premultiply(n?c.rest[n]:o.quaternion);}
+  return c._toeAx[side]=V(0,0,1).applyQuaternion(q.invert());}
+// aim the foot so the ball of the foot lands on point B, then bend the toes flat along the floor toward dir (bent at the ball, like a real foot)
+function toePlant(c,side,B,dir){const b=c.bones,tb=b[side+'ToeBase'];aim(b[side+'Foot'],tb,B);
+  const wq=tb.getWorldQuaternion(new THREE.Quaternion());const cur=toeAxis(c,side).clone().applyQuaternion(wq);
+  const dq=new THREE.Quaternion().setFromUnitVectors(cur.normalize(),dir.clone().normalize());
+  tb.quaternion.copy(tb.parent.getWorldQuaternion(new THREE.Quaternion()).invert().multiply(dq.multiply(wq)));tb.updateMatrixWorld(true);}
+// where the ball of the foot sits for an ankle A when the foot points from the ankle toward dir (horizontal) and the ball rests on the mat
+function ballOf(A,dir,ty=BALL_Y){const dy=Math.min(D.footL*.97,Math.max(0,A.y-ty));return A.clone().addScaledVector(dir.clone().setY(0).normalize(),Math.sqrt(D.footL*D.footL-dy*dy)).setY(A.y-dy);}
+function posePush(c,F,b,u,P){ // push-up: hands fixed on the floor, the body pivots on the toes (rigid from toes to shoulders)
   const uu=clamp(u,0,1);const hx=D.shx+.06*D.s;const y1=.035+(D.arm+D.fore)*.97,y0=F.half?.33:.2*D.s;
-  const S=V(0,lerp(y0,y1,uu),PU_HZ-.02+.05*(1-uu));const L=D.sh.y-.05;const T=V(0,.02,PU_HZ+Math.sqrt(L*L-Math.pow(y1-.02,2)));
-  const hs=D.sh.clone().sub(D.hips).length();const Ank=T.clone().add(V(0,.12*D.s,-.05));const H=S.clone().add(V().subVectors(Ank,S).setLength(hs)).add(V(0,F.sag?-.15:F.pike?.17:0,0));
+  const L=D.sh.y-.05;const T=V(0,.02,PU_HZ+Math.sqrt(L*L-Math.pow(y1-.02,2)));
+  const hs=D.sh.clone().sub(D.hips).length();const Ank1=T.clone().add(V(0,.12*D.s,-.05)),S1=V(0,y1,PU_HZ);
+  // the body pivots on the balls of the feet (on the mat, a foot length below and toward the head from the ankles):
+  // shoulders and ankles turn about them, so the feet never slide or sink while the body goes down and up
+  const Bp=ballOf(Ank1,V(0,0,-1)),R=S1.distanceTo(Bp);
+  const sy=lerp(y0,y1,uu);const S=V(0,sy,Bp.z-Math.sqrt(R*R-Math.pow(sy-Bp.y,2)));
+  const qr=new THREE.Quaternion().setFromUnitVectors(S1.clone().sub(Bp).normalize(),S.clone().sub(Bp).normalize());
+  const AnkC=Bp.clone().add(Ank1.clone().sub(Bp).applyQuaternion(qr));
+  const H=S.clone().add(V().subVectors(AnkC,S).setLength(hs)).add(V(0,F.sag?-.15:F.pike?.17:0,0));
   setRoot(c,rootFromAxes(V().subVectors(S,H),V(0,-1,0)),H);resetRest(c);c.root.updateMatrixWorld(true);c._S=S;c._T=T;
-  // face down with the head toward −z, so the lifter's left side is world −x
-  for(const s of[1,-1]){const side=sideOf(s),w=-s;const A=V(w*.1,.12*D.s,T.z-.05);legTo(c,side,A,V(0,-1,0));aim(c.bones[side+'Foot'],c.bones[side+'ToeBase'],V(A.x,.02,A.z+.14));
+  // face down with the head toward −z, so the lifter's left side is world −x; toes tucked, flat on the mat toward the head
+  for(const s of[1,-1]){const side=sideOf(s),w=-s;const A=V(w*.1,AnkC.y,AnkC.z);legTo(c,side,A,V(0,1,0));toePlant(c,side,V(A.x,Bp.y,Bp.z),V(0,0,-1));
     const f=(F.flare??45)*DEG;armTo(c,side,V(w*hx,.012,PU_HZ),{hd:V(0,0,-1),pn:V(0,-1,0),pole:V(w*Math.sin(f),.08,Math.cos(f)).normalize(),curl:0});}
   return u;}
 const DIP_Y=1.22,DIP_Z=-12.0;
@@ -94,15 +114,18 @@ function buildPecDeck(g){const P=seatMachine(g);const R=seatShoulderRef();P.h=[]
   box(1.0,.08,.12,M.black,0,2.0,R.z,g);box(.08,.08,.75,M.black,0,2.0,R.z-.37,g);
   for(const s of[1,-1]){P.h.push(cyl(.02,.2,M.black,0,0,0,'y',g,10));P.arm.push(rod(.022,M.steel,g));cyl(.035,.06,M.red,s*D.shx,1.98,R.z,'y',g,12);}
   return P;}
-// dual cable tower (crossover); pulleys slide on the rails, attachments clip on
+// dual cable tower (crossover); pulleys slide on the rails, attachments clip on; a free handle hangs CROSS_HANG under its pulley
+const CROSS_HANG=.17;
 function buildCable(g){const P={h:[],cable:[],pul:[],stackTop:[],car:[]};
   for(const s of[1,-1]){const x=s*1.05;box(.34,2.3,.34,M.black,x,1.15,CZ-.05,g);box(.06,2.1,.06,M.steel,s*.88,1.12,CZ-.05,g);
-    const car=new THREE.Group();g.add(car);box(.1,.16,.1,M.red,0,0,0,car);const pul=new THREE.Group();pul.position.set(-s*.02,0,0);car.add(pul);cyl(.045,.04,M.steel,0,0,0,'x',pul,16);
+    const car=new THREE.Group();g.add(car);box(.1,.16,.1,M.red,0,0,0,car);const pul=new THREE.Group();pul.position.set(-s*.06,0,0);car.add(pul);cyl(.045,.04,M.steel,0,0,0,'x',pul,16);
     car.position.set(s*.88,2.02,CZ-.05);P.car.push(car);P.pul.push(pul);
     P.stackTop.push(stack(g,x,.1,CZ+.13,9));P.h.push(cyl(.018,.13,M.red,0,0,0,'x',g,10));P.cable.push(rod(.0045,M_cable,g));}
   box(2.44,.08,.08,M.black,0,2.3,CZ-.05,g);
+  P.pulL=i=>{const p=V();P.pul[i].getWorldPosition(p);return g.worldToLocal(p);}; // pulley centre in the station frame
   P.setPulley=(y,i)=>{for(const k of i===undefined?[0,1]:[i]){P.car[k].position.y=y;P.car[k].updateMatrixWorld(true);}};
-  P.rest=()=>{for(let i=0;i<2;i++){const p=V();P.pul[i].getWorldPosition(p);g.worldToLocal(p);P.h[i].position.copy(p).add(V(0,-.08,0));setRod(P.cable[i],p,P.h[i].position);}};
+  P.rest=()=>{for(let i=0;i<2;i++){const p=V();P.pul[i].getWorldPosition(p);g.worldToLocal(p);P.h[i].position.copy(p).add(V(0,-CROSS_HANG,0));setRod(P.cable[i],p,P.h[i].position);}};
+  P.tick=()=>{if(!hero)return;for(let i=0;i<2;i++){if(!hero.hold.some(h=>h.obj===P.h[i]))continue;const pw=V();P.pul[i].getWorldPosition(pw);g.worldToLocal(pw);setRod(P.cable[i],pw,P.h[i].position);}};
   P.setPulley(2.02);P.rest();return P;}
 function buildMat(g){const m=box(.75,.012,2.0,M_mat,0,.006,-11.75,g,false);m.receiveShadow=true;m.userData.walkable=true;return {wheel:buildAbWheel(g)};}
 function buildDip(g){const hx=D.shx+.06*D.s;const P={};

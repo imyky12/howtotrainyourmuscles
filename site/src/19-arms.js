@@ -1,16 +1,86 @@
 
 // ---------------------------------------------------------------- arms: biceps (6) and triceps (6)
 // carry a straight bar or EZ bar from the wall rack, and put it back
-function fetchBar(e,then){const fr=barFrame(e.needs);hero.barFr=fr;setFlow('walking');walkStatus(e.needs==='ez'?'Grabbing the EZ bar':'Grabbing a barbell');
-  goTo(hero,fr.pre,{face:fr.rot,done:()=>{runSeq(hero,fr,[{walk:[0,-11.9],d:.8},{d:1.1,pose:c=>barPickPose(c,fr,.3)},{d:.3,pose:c=>barPickPose(c,fr,1)},
+// grip the bar on the rack with open hands, close the fingers, a beat, lift it off the rail and step back. The straight bar then
+// goes up onto the shoulders (mid -> chest -> overhead -> behind the head -> upper back) for the walk; the EZ bar stays in the hands.
+function fetchBar(e,then){const fr=barFrame(e.needs);hero.barFr=fr;const straight=e.needs==='bar';hero.barGrip=straight?.33*D.s:null;setFlow('walking');walkStatus(e.needs==='ez'?'Grabbing the EZ bar':'Grabbing a barbell');
+  goTo(hero,fr.pre,{face:fr.rot,land:1,done:()=>{runSeq(hero,fr,[{walk:[0,-11.8],land:1,d:.8},
+    {d:1.1,pose:c=>barPickPose(c,fr,.1,c.barGrip)},{d:.5,pose:c=>barPickPose(c,fr,1,c.barGrip)},{d:.25,pose:c=>barPickPose(c,fr,1,c.barGrip)},
     {call:c=>{scene.attach(fr.bar);grab(c,fr.bar,'Left',{other:'Right',align:'bar'});c.bar=fr.bar;}},
-    {d:1.0,pose:c=>{standPose(c,{z:-11.9,arms:'none'});holdBarThighs(c);}},{walk:[0,-12.5],back:true,d:.9},{call:c=>{c.carry='bar';}}],()=>then());}});}
+    {d:1.0,pose:c=>barStage(c,'thighs',{z:-11.8})},{call:c=>{c.carry='bar';}},{walk:[0,-12.5],back:true,land:1,d:.9},
+    ...(straight?barUpSteps(fr):[])],()=>then());}});}
 function returnBar(then){const fr=hero.barFr;if(!fr){then();return;}walkStatus('Putting the bar back');setFlow('walking');
-  goTo(hero,fr.pre,{face:fr.rot,done:()=>{runSeq(hero,fr,[{call:c=>{c.carry=null;}},{walk:[0,-11.9],d:.8},{d:1.1,pose:c=>barPickPose(c,fr,1)},
+  goTo(hero,fr.pre,{face:fr.rot,land:1,done:()=>{runSeq(hero,fr,[...(hero.carry==='backBar'?barDownSteps({x:0,z:-12.5,h:0}):[]),
+    {walk:[0,-11.8],land:1,d:.8},{call:c=>{c.carry=null;}},{d:1.2,pose:c=>barPickPose(c,fr,1,c.barGrip)},{d:.2,pose:c=>barPickPose(c,fr,1,c.barGrip)},
     {call:c=>{c.hold=[];fr.home.parent.attach(fr.bar);fr.bar.position.copy(fr.home.p);fr.bar.quaternion.identity();c.bar=null;}},
-    {d:.4,pose:c=>barPickPose(c,fr,.2)},{d:1.0,pose:c=>standPose(c,{z:-11.9})},{walk:[0,-12.5],back:true,d:.9}],()=>{hero.barFr=null;then();});}});}
-function holdBarThighs(c){const T=torsoAxes(c);const ct=wpos(c.bones.Hips).addScaledVector(T.F,.17).addScaledVector(T.U,-.22);
-  for(const s of[1,-1])armTo(c,sideOf(s),ct.clone().addScaledVector(T.L,s*.19),{hd:V(0,-1,0),pn:T.F.clone().negate(),pole:T.F.clone().negate().addScaledVector(T.L,s*.3)});}
+    {d:.5,pose:c=>barPickPose(c,fr,.1,c.barGrip)},{d:1.0,pose:c=>standPose(c,{z:-11.8})},{walk:[0,-12.5],back:true,land:1,d:.9}],()=>{hero.barFr=null;hero.barGrip=null;then();});}});}
+function holdBarThighs(c,grip){const g=grip||c.barGrip||.19;const T=torsoAxes(c);const ct=wpos(c.bones.Hips).addScaledVector(T.F,.17).addScaledVector(T.U,-.22);
+  for(const s of[1,-1])armTo(c,sideOf(s),ct.clone().addScaledVector(T.L,s*g),{hd:V(0,-1,0),pn:T.F.clone().negate(),pole:T.F.clone().negate().addScaledVector(T.L,s*.3)});}
+// hands on a bar resting across the upper back, `g` out from the centre
+function barBackHands(c,g){const ct=barOnBack(c);const T=torsoAxes(c);for(const s of[1,-1])armTo(c,sideOf(s),ct.clone().addScaledVector(T.L,s*g),{hd:T.U.clone().addScaledVector(T.F,.3),pn:T.F.clone().negate(),pole:T.U.clone().negate().addScaledVector(T.F,-.5).addScaledVector(T.L,s*.2)});}
+// standing at o (canonical x, z, heading) with the bar at one stage of the lift onto the shoulders; the bar follows the hands
+function barStage(c,stage,o={}){const up=stage==='over'||stage==='overBack';standPose(c,{x:o.x||0,z:o.z??-12,h:o.h||0,arms:'none',look:up?14:0});const T=torsoAxes(c);const g=c.barGrip||.19;
+  if(stage==='thighs')return holdBarThighs(c,g);
+  if(stage==='back')return barBackHands(c,g);
+  const [a,b]=shoulders(c);const S=a.add(b).multiplyScalar(.5);let ct,hd,pn,pole;
+  if(stage==='mid'){ct=wpos(c.bones.Hips).addScaledVector(T.F,.3).addScaledVector(T.U,.08);hd=T.F;pn=T.U;pole=s=>T.L.clone().multiplyScalar(s*.3).addScaledVector(T.U,-1);}
+  else if(stage==='chest'){ct=S.clone().addScaledVector(T.F,.17).addScaledVector(T.U,-.1);hd=T.U.clone().addScaledVector(T.F,-.15);pn=T.F.clone().negate();pole=s=>T.U.clone().negate().addScaledVector(T.L,s*.5);}
+  else if(stage==='over'){ct=S.clone().addScaledVector(T.U,.5);hd=T.F.clone().addScaledVector(T.U,.4);pn=T.U.clone().addScaledVector(T.F,-.35);pole=s=>T.L.clone().multiplyScalar(s).addScaledVector(T.F,.3);}
+  else {ct=S.clone().addScaledVector(T.U,.32).addScaledVector(T.F,-.2);hd=T.U.clone().addScaledVector(T.F,.4);pn=T.F.clone().negate().addScaledVector(T.U,.3);pole=s=>T.L.clone().multiplyScalar(s).addScaledVector(T.F,-.2);}
+  for(const s of[1,-1])armTo(c,sideOf(s),ct.clone().addScaledVector(T.L,s*g),{hd,pn,pole:pole(s)});}
+// steps that take the bar from the hands at the thighs up onto the shoulders where the character stands (st = the frame of the sequence)
+function barUpSteps(st){const at=c=>c._spot||{};return [{call:c=>{if(!c.cur){c.root.updateMatrixWorld(true);standFromRoot(c);}c._spot=hereC(c,st);}},
+  {d:.7,pose:c=>barStage(c,'mid',at(c))},{d:1.0,pose:c=>barStage(c,'chest',at(c))},{d:1.25,pose:c=>barStage(c,'over',at(c))},
+  {d:.7,pose:c=>barStage(c,'overBack',at(c))},{d:.9,pose:c=>barStage(c,'back',at(c))},{call:c=>{c.carry='backBar';}}];}
+// and back down into the hands at the thighs, at the canonical spot o
+function barDownSteps(o){return [{d:.8,pose:c=>barStage(c,'overBack',o)},{d:.8,pose:c=>barStage(c,'over',o)},{d:1.25,pose:c=>barStage(c,'chest',o)},
+  {d:.7,pose:c=>barStage(c,'mid',o)},{d:.7,pose:c=>barStage(c,'thighs',o)},{call:c=>{c.carry='bar';}}];}
+
+// ---- blending into a pose with the feet kept on the floor
+// A plain pose step lerps every joint, so between standing and sitting the feet dip under the floor. settle(B) is an
+// anim step: it blends from the pose the lifter is in to B while each ankle and toe slides straight between where it
+// was and where B puts it, and the legs are re-solved to those points every frame.
+function unframe(c,st){if(!st)return;c.root.position.applyMatrix4(st.g.matrixWorld.clone().invert());c.root.quaternion.premultiply(st.q.clone().invert());c.root.updateMatrixWorld(true);}
+function feetOf(c){return [1,-1].map(s=>{const sd=sideOf(s);return {A:wpos(c.bones[sd+'Foot']),K:wpos(c.bones[sd+'Leg']),T:wpos(c.bones[sd+'ToeBase']),H:wpos(c.bones[sd+'UpLeg'])};});}
+// the knee's offset square to the hip-ankle line (which way the knee points, whatever the leg's own direction)
+function kneeOff(K,H,A){const v=K.clone().sub(H),l=A.clone().sub(H).normalize();return v.addScaledVector(l,-v.dot(l));}
+function settle(B,o={}){let sa=null,fa=null,pk=[null,null];return (c,k)=>{const st=c.act_&&c.act_.st;
+  if(!sa){unframe(c,st);sa=snapshot(c);fa=feetOf(c);}
+  B(c,k);const sb=snapshot(c),fb=feetOf(c);const t=o.lin?k:ease(k);blendTo(c,sa,sb,t);
+  for(const [i,s] of [1,-1].entries()){const sd=sideOf(s);
+    // o.step: the feet move one after the other with a small lift (a shuffle), else they slide together
+    const ft=o.step?smooth(clamp((k-i*.45)/.55,0,1)):t;const lift=o.step?Math.pow(Math.sin(Math.PI*ft),2)*.06:0; // (squared: a straight leg's knee goes as the root of the lift, so it eases off the floor instead of popping)
+    const ank=fa[i].A.clone().lerp(fb[i].A,ft).add(V(0,lift,0)),toe=fa[i].T.clone().lerp(fb[i].T,ft).add(V(0,lift,0));
+    if(o.arc){const a=Math.pow(Math.sin(Math.PI*ft),2);ank.addScaledVector(o.arc,a);toe.addScaledVector(o.arc,a);}
+    // (plus a little of the pelvis' forward: a nearly straight leg has almost no knee offset to go by, so the knee stays forward)
+    // knee direction: between the two poses' knee offsets, biased to last frame's so the knee never flips when the leg passes straight; o.kneeUp keeps it up
+    const hip=wpos(c.bones[sd+'UpLeg']);const pole=kneeOff(fa[i].K,fa[i].H,fa[i].A).lerp(kneeOff(fb[i].K,fb[i].H,fb[i].A),ft);if(pk[i])pole.addScaledVector(kneeOff(pk[i],hip,ank),.5);if(o.kneeUp)pole.add(V(0,.5,0));pole.addScaledVector(pelvisAxes(c).F,.04);if(o.arc)pole.addScaledVector(o.arc,Math.pow(Math.sin(Math.PI*ft),2));
+    // the foot turns from one pose's direction to the other's (a toe going from forward to back points down on the way): where
+    // that would put the toe through the floor the ankle lifts instead, as a foot does when it flips over to kneel
+    // an ankle out at the leg's full length would snap the knee straight in one frame: ease it in short of full stretch
+    {const v=ank.clone().sub(hip),dd=v.length(),Lg=D.thigh+D.shin,s0=.965*Lg;if(dd>s0){const m=Lg*.999-s0,w=Math.min(1,4*ft*(1-ft));ank.copy(hip).addScaledVector(v,lerp(Math.min(dd,Lg),s0+m*Math.tanh((dd-s0)/m),w)/dd);}} // (only on the way: the end pose is reached exactly)
+    const da=fa[i].T.clone().sub(fa[i].A),db=fb[i].T.clone().sub(fb[i].A);const dn=da.lengthSq()>1e-8&&db.lengthSq()>1e-8?slerpV(da,db,ft):toe.clone().sub(ank).normalize();
+    if(ank.y<.3&&ank.y+D.footL*dn.y<.03)ank.y=.03-D.footL*dn.y;toe.copy(ank).addScaledVector(dn,D.footL);
+    legTo(c,sd,ank,pole);pk[i]=wpos(c.bones[sd+'Leg']);
+    footTo(c,sd,toe);}
+  c.root.updateMatrixWorld(true);};}
+// a rope or handle held in both hands follows them (props callback of a settle step), and the cable and stack follow it
+function ropeFollow(c,o={}){const P=ST.P;const l=toC(ST,gripPoint(c,'Left')),r=toC(ST,gripPoint(c,'Right'));const mid=l.clone().add(r).multiplyScalar(.5);
+  const pul=P.pulW();const up=V().subVectors(pul,mid).normalize();const clip=mid.clone().addScaledVector(up,o.clip??.14);
+  if(P.att==='rope'){P.ropeAt(clip,l,r);P.cableTo(clip);}else{P.dh.position.copy(mid);P.dh.quaternion.setFromUnitVectors(V(1,0,0),up.y>.5?V(0,1,0):up);P.cableTo(mid);}
+  P.stackTop.position.y=clamp((pul.distanceTo(clip)-.16)*.5,0,.3);}
+// the lifter's left hand on the cable column's carriage, whatever height it is at: on the toes for a high one, crouched for a low one
+const COL_Z=-11.3; // where the lifter stands to set the column (toes just clear of the tower)
+function colReach(c,y){const lo=clamp((1.05-y)/.8,0,1),hi=clamp((y-1.6)/.4,0,1);
+  standPose(c,{z:COL_Z-.18*lo,arms:'none',drop:.75*lo,hinge:36*lo,back:.05*lo,shrug:.03+.22*hi,stance:.13+.22*lo,look:28*hi,toe:8+24*lo});
+  armsHang(c,0,-1);const p=ST.P.car.position.clone().add(V(.065,-.06*hi,-.02));armTo(c,'Left',p,{hd:V(0,.3*hi,1),pn:V(-1,0,0),pole:V(.5,-1,0)});}
+// cable column: reach the carriage, slide it to the height the exercise needs, clip the attachment, stand back up
+// (the slide takes longer the further the carriage goes: the hips drop or rise with it, never faster than about half a metre a second)
+function colSet(y,att){const dy=Math.abs(((ST&&ST.P&&ST.P.car)?ST.P.car.position.y:y)-y);return [
+  {walk:[0,COL_Z-.22],land:1,d:.9}, // the walk clip's leading foot swings ahead, so stop short of the tower and settle the rest
+  {d:1.3,anim:settle(c=>colReach(c,ST.P.car.position.y))},
+  {d:clamp(.8+dy*1.9,1.2,3.4),anim:(c,k)=>{const P=ST.P;P._y0=P._y0??P.car.position.y;P.setPulley(lerp(P._y0,y,smooth(k)));P.use(att);P.rest();colReach(c,P.car.position.y);if(k>=1)P._y0=undefined;}},
+  {d:1.3,anim:settle(c=>standPose(c,{z:COL_Z-.08}),{step:1})}];} // standing up, a small step back off the tower's base
 
 // ---- one arm curling: upper arm at `flex` degrees in front of the torso line (plane through the torso's up and forward),
 // elbow bent by `bend` degrees (0 = straight). grip: 'sup' (palm up), 'neutral' (thumb up) or 'pro' (palm down)
@@ -45,10 +115,10 @@ function poseInclineCurl(c,F,b,u,P){const k=smooth(clamp(u,0,1));P.setAngle&&P.s
 function posePreacher(c,F,b,u,P){const k=smooth(clamp(u,0,1));
   setRoot(c,qX(24*DEG),V(0,PR.seatY+.1*D.s,PR.seatZ));resetRest(c);c.root.updateMatrixWorld(true);{const [a,b2]=shoulders(c);const m=a.add(b2).multiplyScalar(.5);const tgt=PR.padTop.clone().add(V(0,.075,-.035));c.root.position.add(tgt.sub(m));}
   clav(c,{shrug:F.lift?.03+.25*k:.03,protract:.08});c.root.updateMatrixWorld(true);c._hipsY=wpos(c.bones.Hips).y;c._hipsZ=wpos(c.bones.Hips).z;
-  for(const s of[1,-1])legTo(c,sideOf(s),V(s*.18,D.ankY,-11.9),V(s*.15,.4,1));
+  for(const s of[1,-1]){legTo(c,sideOf(s),V(s*.18,D.ankY,PR.footZ),V(s*.15,.4,1));footTo(c,sideOf(s),V(s*.2,.035,PR.footZ+.19));}
   const T=torsoAxes(c);const lift=F.lift?.11*k:0;const down=PR.padDir.clone();const fwd=V(0,Math.SQRT1_2,Math.SQRT1_2);
   let bend=lerp(F.half?45:12,125,k);if(F.bounce&&b.phase===1)bend=Math.max(4,12-10*Math.sin(Math.PI*b.k));
-  const pts=[];for(const s of[1,-1]){const r=curlArm(c,s,{T,down:down.clone().applyAxisAngle(V(1,0,0),-lift*5),fwd,flex:0,bend,grip:'sup',out:-.02});pts.push(r.contact);}
+  const pts=[];for(const s of[1,-1]){const r=curlArm(c,s,{T,down:down.clone().applyAxisAngle(V(1,0,0),-lift*5),fwd,flex:0,bend,grip:'sup',out:-.02,curl:F._curl??1});pts.push(r.contact);}
   placeBar2(P,pts[0],pts[1]);return u;}
 // concentration curl: seated on the bench end, elbow braced on the inside of the right thigh
 function poseConcentration(c,F,b,u,P){const k=smooth(clamp(u,0,1));const rock=F.rock&&b.phase===2?Math.sin(Math.PI*b.k):0;
@@ -64,7 +134,7 @@ function poseConcentration(c,F,b,u,P){const k=smooth(clamp(u,0,1));const rock=F.
   c._brace=brace;return u;}
 // ---- triceps
 // rope pushdown at the column (top pulley), facing the tower
-function posePushdown(c,F,b,u,P){const k=smooth(clamp(u,0,1));P.use('rope');P.setPulley(2.1);const bob=F.lean&&b.phase===2?Math.sin(Math.PI*b.k):0;
+function posePushdown(c,F,b,u,P){const k=smooth(clamp(u,0,1));P.use('rope');P.setPulley(2.0);const bob=F.lean&&b.phase===2?Math.sin(Math.PI*b.k):0;
   standPose(c,{z:-11.62,hinge:F.lean?32+10*bob:12,arms:'none',look:6,stance:.12});const T=torsoAxes(c);
   const swing=F.swing?lerp(0,38,1-k):0;const hands=[];
   for(const s of[1,-1]){const bend=lerp(98,F.half?32:3,k);const r=curlArm(c,s,{T,flex:4+swing,bend,grip:'neutral',out:.1+.12*k});hands.push(r.contact);}
@@ -120,30 +190,97 @@ Object.assign(MEAS,{
 });
 
 // ---- getting on and off
-ENTRY.barStand={pre:[0,-12.6],face:0,enter:(st,e)=>[{walk:[0,-12],d:.8},{call:c=>{c.carry=null;}},{d:.8,pose:exP(0,1)}],
-  leave:(st,e)=>[{d:.8,pose:c=>{standPose(c,{z:-12,arms:'none'});holdBarThighs(c);}},{call:c=>{c.carry='bar';}},{walk:[0,-12.6],back:true,d:.8}]};
-ENTRY.preacher={pre:[.85,-12.3],face:-Math.PI/2,
-  enter:(st,e)=>[{walk:[.45,-12.3],d:.7},{turn:0},{d:1.0,pose:c=>sitSide(c,V(0,PR.seatY+.1*D.s,PR.seatZ),8,-11.9)},
-    {d:1.1,pose:c=>{posePreacher(c,FORMS.good,{phase:1,k:0},0,st.P);st.P.bar.position.copy(st.P.home);}},{d:.6,pose:exP(0,1)},{d:1.0,anim:exFrom(0,1)}],
-  leave:(st,e)=>[{d:.9,pose:exP(0,1)},{d:.5,pose:c=>{posePreacher(c,FORMS.good,{phase:1,k:0},0,st.P);st.P.bar.position.copy(st.P.home);st.P.bar.quaternion.identity();}},
-    {d:.9,pose:c=>{sitSide(c,V(0,PR.seatY+.1*D.s,PR.seatZ),8,-11.9);st.P.bar.position.copy(st.P.home);st.P.bar.quaternion.identity();}},{d:.8,pose:c=>standPose(c,{x:.45,z:-12.3,h:Math.PI/2})},{walk:[.85,-12.3],d:.6}]};
-ENTRY.inclineCurl={pre:[0,-10.45],face:Math.PI,
-  enter:(st,e)=>[{turn:0},{call:c=>{c.carry=null;}},{d:1.2,anim:(c,k)=>{st.P.setAngle(lerp(st.P._ang??30,INC_CURL,smooth(k)));standDB(c,{z:-10.6});}},{call:()=>{st.P._ang=INC_CURL;}},{walk:[0,-11.08],back:true,d:1.1},
-    {d:1.0,pose:c=>{st.P.setAngle(INC_CURL);benchSitDB(c,{lean:2});}},{d:1.3,pose:exP(0,1)}],
-  leave:(st,e)=>[{d:.8,pose:exP(0,1)},{d:1.2,pose:c=>benchSitDB(c,{lean:2})},{d:1.0,pose:c=>standDB(c,{z:-11.08})},{walk:[0,-10.45],d:1.0},{call:c=>{c.carry='db';}}]};
-ENTRY.concentration={pre:[0,-10.45],face:Math.PI,
-  enter:(st,e)=>[{turn:0},{walk:[0,-11.08],back:true,d:1.2},{call:c=>{c.carry=null;}},{d:1.0,pose:c=>{benchSit(c,{lean:20,feetX:.36,feetZ:.42,arms:'none'});armsHang(c);}},{d:1.0,pose:exP(0,1)}],
-  leave:(st,e)=>[{d:.8,pose:exP(0,1)},{d:1.0,pose:c=>{benchSit(c,{lean:20,feetX:.36,feetZ:.42,arms:'none'});armsHang(c);}},{d:1.0,pose:c=>standDB(c,{z:-11.08})},{walk:[0,-10.45],d:1.0},{call:c=>{c.carry='db1';}}]};
-ENTRY.skull={pre:[0,-10.45],face:Math.PI,
-  enter:(st,e)=>[{turn:0},{walk:[0,-11.08],back:true,d:1.2},{call:c=>{c.carry=null;}},
-    {d:1.0,pose:c=>{benchSit(c,{lean:4,arms:'none'});holdBarThighs(c);}},{d:1.3,pose:c=>{lieBody(c,{});const T=torsoAxes(c);const pts=[];for(const s of[1,-1]){pts.push(curlArm(c,s,{T,flex:90,bend:4,grip:'pro',out:-.02}).contact);}placeBar2(st.P,pts[0],pts[1]);}},
-    {d:.8,pose:exP(1,3)}],
-  leave:(st,e)=>[{d:.8,pose:c=>{lieBody(c,{});const T=torsoAxes(c);const pts=[];for(const s of[1,-1]){pts.push(curlArm(c,s,{T,flex:90,bend:4,grip:'pro',out:-.02}).contact);}placeBar2(st.P,pts[0],pts[1]);}},
-    {d:1.3,pose:c=>{benchSit(c,{lean:4,arms:'none'});holdBarThighs(c);}},{d:1.0,pose:c=>{standPose(c,{z:-11.08,arms:'none'});holdBarThighs(c);}},{walk:[0,-10.45],d:1.0},{call:c=>{c.carry='bar';}}]};
-ENTRY.cableBack={pre:[0,-12.35],face:0,
-  enter:(st,e)=>[...colAdjust(e.pulley,e.att),{turn:Math.PI},{walk:[0,-11.85],d:.9},{d:1.1,pose:exP(0,1)}],
-  leave:(st,e)=>[{d:.9,pose:exP(0,1)},{d:.8,pose:c=>standPose(c,{z:-11.85,h:Math.PI}),props:(c,k)=>{const P=st.P;const p=P.pulW().add(V(0,-.12,.02));P.attPos().lerp(p,smooth(k));P.cableTo(P.attPos());if(k>=1)P.rest();}},{walk:[0,-12.35],d:.8}]};
-
+// turn on the spot (canonical x, z) from heading h0 to h1 by stepping round: up to 60° per step, the feet lifting one after the
+// other, instead of the walk clip swinging them; pf(c,{x,z,h}) is the standing pose (with whatever the hands are holding)
+function turnSteps(x,z,h0,h1,pf=standPose,d=.7){const dh=angDiff(h1,h0);const n=Math.max(1,Math.ceil(Math.abs(dh)/(60*DEG)-1e-3));const out=[];
+  for(let i=1;i<=n;i++){const h=h0+dh*i/n;out.push({d,anim:settle(c=>pf(c,{x,z,h}),{step:1})});}return out;}
+const standBarThighs=(c,o)=>{standPose(c,{...o,arms:'none'});holdBarThighs(c);};
+ENTRY.barStand={land:1,pre:[0,-12.6],face:0,enter:(st,e)=>[{walk:[0,-12],land:1,d:.8},{call:c=>{c.carry=null;}},{d:.8,pose:exP(0,1)},{d:1.0,anim:exFrom(0,1)}],
+  leave:(st,e)=>[{d:.8,pose:c=>{standPose(c,{z:-12,arms:'none'});holdBarThighs(c);}},{call:c=>{c.carry='bar';}},{walk:[0,-12.6],back:true,land:1,d:.8}]};
+// seated sideways-on to the front, feet on the floor (preacher seat)
+function sitSide(c,hip,lean,feetZ){setRoot(c,qX(lean*DEG),hip);resetRest(c);c.root.updateMatrixWorld(true);for(const s of[1,-1])legTo(c,sideOf(s),V(s*.17,D.ankY,feetZ),V(s*.2,.4,1));armsHang(c);}
+// the bar waits on the rest right where the hands are at the bottom of a rep: reach it with open hands, close them, lift it off
+function preacherAt(c,P,curl,home){posePreacher(c,{...FORMS.good,_curl:curl},{phase:1,k:0},0,P);if(home){P.bar.position.copy(P.home);P.bar.quaternion.identity();}}
+// getting on from the side: stand beside the seat, lower the hips onto its edge while the far (right) leg steps over the base
+// rail to the front of the seat, under the pad, then slide across onto the middle with the near foot following
+const PR_SIDE={x:.45,z:-12.25}; // standing beside the seat, facing the pad
+const prStep={step:1,arc:V(0,.06,0)}; // a foot crossing the rail is lifted over it
+function prHalf(c,rx=-.15){setRoot(c,qX(10*DEG),V(.21,PR.seatY+.1*D.s+.1,PR.seatZ));resetRest(c);c.root.updateMatrixWorld(true);const rz=rx>0?-11.97:-12.02;
+  legTo(c,'Left',V(.42,D.ankY,-12.12),V(.4,.4,1));footTo(c,'Left',V(.45,.03,-11.97));legTo(c,'Right',V(rx,D.ankY,rz),V(-.1,.4,1));footTo(c,'Right',V(rx-.02,.03,rz+.15));armsHang(c);}
+const prHalfOut=c=>prHalf(c,.27); // the right foot still this side of the rail, in front of the seat corner
+ENTRY.preacher={land:1,pre:[.85,-12.3],face:-Math.PI/2,
+  enter:(st,e)=>[{walk:[PR_SIDE.x,-12.3],land:1,d:.7},...turnSteps(PR_SIDE.x,-12.3,-Math.PI/2,0),{d:.6,anim:settle(c=>standPose(c,PR_SIDE),{step:1})},
+    {d:1.1,anim:settle(prHalfOut,{step:1})},{d:.9,anim:settle(prHalf,prStep)},{d:1.1,anim:settle(c=>sitSide(c,V(0,PR.seatY+.1*D.s,PR.seatZ),8,-12.02),{step:1})},
+    {d:1.2,anim:settle(c=>preacherAt(c,st.P,.1,1))},{d:.4,pose:c=>preacherAt(c,st.P,1,1)},{call:c=>grab(c,st.P.bar,'Left',{other:'Right',align:'bar'})},
+    {d:.5,pose:exP(0,1)},{call:c=>{release(c,st.P.bar);}},{d:1.0,anim:exFrom(0,1)}],
+  leave:(st,e)=>[{call:c=>grab(c,st.P.bar,'Left',{other:'Right',align:'bar'})},{d:.9,pose:exP(0,1)},{d:.4,pose:c=>preacherAt(c,st.P,1)},
+    {call:c=>{release(c,st.P.bar);st.P.bar.position.copy(st.P.home);st.P.bar.quaternion.identity();}},{d:.4,pose:c=>preacherAt(c,st.P,.1,1)},
+    {d:1.0,anim:settle(c=>{sitSide(c,V(0,PR.seatY+.1*D.s,PR.seatZ),8,-12.02);st.P.bar.position.copy(st.P.home);st.P.bar.quaternion.identity();})},
+    {d:1.1,anim:settle(prHalf,{step:1})},{d:.9,anim:settle(prHalfOut,prStep)},{d:1.1,anim:settle(c=>standPose(c,PR_SIDE),{step:1})},...turnSteps(PR_SIDE.x,PR_SIDE.z,0,Math.PI/2),{walk:[.85,-12.3],land:1,d:.6}]};
+// close-grip bench: as the chest's barBench, but sitting down and standing up with the feet on the floor
+ENTRY.barBenchA={land:1,pre:[0,-10.45],face:Math.PI,
+  enter:(st,e)=>{const P=st.P,ang=(e.forms.good.angle||0)*DEG,feet=e.forms.good.feet,gr=e.forms.good.grip??GRIP;return [
+    ...turnSteps(0,-10.45,Math.PI,0),{walk:[0,-11.08],back:true,land:1,d:1.3},
+    {d:.9,anim:settle(c=>benchSit(c,{lean:4}))},
+    {d:1.4,anim:settle(c=>poseBarHands(c,P,rackHandsOf(P,gr),ang,feet,.1))},{d:.4,pose:c=>poseBarHands(c,P,rackHandsOf(P,gr),ang,feet)},{d:.2,pose:c=>poseBarHands(c,P,rackHandsOf(P,gr),ang,feet)},
+    {call:()=>sayFor(e.coachIn||'Lift-off on three. One, two, three.',2.6)},
+    {d:1.2,anim:(c,k)=>{const R=rackHandsOf(P,gr),L=lockHands(ang/DEG,gr);const up=Math.sin(Math.PI*Math.min(1,k*1.6))*.03;poseBarHands(c,P,R.map((h,i)=>h.clone().lerp(L[i],ease(k)).add(V(0,up,0))),ang,feet);}},
+    // into the exercise's own lockout (elbows as the press holds them): the bar rides in the hands
+    {call:c=>grab(c,P.bar,'Left',{other:'Right',align:'bar'})},{d:.5,pose:exP(1,3)},{call:c=>release(c,P.bar)}];},
+  leave:(st,e)=>{const P=st.P,ang=(e.forms.good.angle||0)*DEG,feet=e.forms.good.feet,gr=e.forms.good.grip??GRIP;return [
+    {call:c=>grab(c,P.bar,'Left',{other:'Right',align:'bar'})},{d:.7,pose:c=>poseBarHands(c,P,lockHands(ang/DEG,gr),ang,feet)},{call:c=>release(c,P.bar)},
+    {d:1.3,anim:(c,k)=>{const R=rackHandsOf(P,gr),L=lockHands(ang/DEG,gr);const kk=ease(k);const h=L.map((p,i)=>p.clone().lerp(R[i],Math.min(1,kk*1.15)).add(V(0,kk<.85?.02*Math.sin(Math.PI*kk/.85):0,0)));poseBarHands(c,P,h,ang,feet);}},
+    {d:.4,pose:c=>poseBarHands(c,P,rackHandsOf(P,gr),ang,feet,.1)},
+    {d:1.2,anim:settle(c=>{benchSit(c,{lean:4});P.bar.position.copy(P.rack);})},
+    {d:1.0,anim:settle(c=>standPose(c,{z:-11.08,h:0}))},
+    {walk:[0,-10.45],land:1,d:1.0}];}};
+// kickback on the flat bench: turn on the spot by stepping, kneel onto the bench with the feet kept on the floor
+ENTRY.dbRowBenchA={land:1,pre:[.95,-11.3],face:-Math.PI/2,
+  enter:(st,e)=>[{walk:[.55,-11.55],land:1,d:.8},{call:c=>{c.carry=null;}},{d:.9,anim:settle(c=>standDB(c,{x:.55,z:-11.55,h:Math.PI}),{step:1})},
+    {d:1.3,anim:settle(exP(0,1))},{d:1.0,anim:exFrom(0,1)}],
+  leave:(st,e)=>[{d:.6,pose:exP(0,1)},{d:1.3,anim:settle(c=>standDB(c,{x:.5,z:-11.55,h:Math.PI}))},{call:c=>{c.carry='db1';}},{walk:[.95,-11.3],land:1,d:.8}]};
+ENTRY.cableColA={land:1,pre:[0,-12.35],face:0,
+  enter:(st,e)=>[...colSet(e.pulley,e.att),{walk:[0,-11.62],back:true,land:1,d:.8},{d:1.0,anim:settle(exP(0,1))},{d:1.0,anim:exFrom(0,1)}],
+  leave:(st,e)=>[{d:.9,pose:exP(0,1)},{d:.8,anim:settle(c=>standPose(c,{z:-11.62})),props:(c,k)=>{const P=st.P;const p=P.pulW().add(P.hang);P.attPos().lerp(p,smooth(k));P.cableTo(P.attPos());if(k>=1)P.rest();}},{walk:[0,-12.35],back:true,land:1,d:1.0}]};
+// overhead extension: the rope hangs from the low pulley, so pick its ends up from the floor, stand, turn round with it, raise it
+function ropeFloorPick(c){standPose(c,{z:-11.5,arms:'none',drop:.8,hinge:50,back:.04,stance:.25,toe:30});const P=ST.P;
+  // fists close round the rope just above the knobs
+  const ends=[P.rope.children.find(k=>k.name==='knob1'),P.rope.children.find(k=>k.name==='knob-1')].map(k=>P.rope.position.clone().add(k.position).lerp(P.rope.position,.3));
+  for(const s of[1,-1])armTo(c,sideOf(s),ends[s>0?0:1].clone().add(V(0,.02,0)),{hd:V(0,-.3,-1),pn:V(0,-1,0),pole:V(s*.5,.3,.3)});}
+function ropeAtThighs(c,o){standPose(c,{...o,arms:'none'});const T=torsoAxes(c);const ct=wpos(c.bones.Hips).addScaledVector(T.F,.16).addScaledVector(T.U,-.2);
+  for(const s of[1,-1])armTo(c,sideOf(s),ct.clone().addScaledVector(T.L,s*.1),{hd:T.U.clone().negate(),pn:T.L.clone().multiplyScalar(-s),pole:T.F.clone().negate().addScaledVector(T.L,s*.4)});}
+// the half turn with the rope is three 60° steps (the feet step round, never across each other)
+const ropeTurn=(z0,z1,h0,h1)=>[1,2,3].map(i=>({d:.75,anim:settle(c=>ropeAtThighs(c,{z:lerp(z0,z1,i/3),h:lerp(h0,h1,i/3)}),{step:1}),props:c=>ropeFollow(c)}));
+ENTRY.cableBack={land:1,pre:[0,-12.35],face:0,
+  enter:(st,e)=>[...colSet(e.pulley,e.att),{d:1.3,anim:settle(ropeFloorPick)},{d:1.3,anim:settle(c=>ropeAtThighs(c,{z:-11.5})),props:c=>ropeFollow(c)},
+    ...ropeTurn(-11.5,-11.6,0,Math.PI),{d:1.1,anim:settle(exP(0,1),{step:1}),props:c=>ropeFollow(c)},{d:1.0,anim:exFrom(0,1)}],
+  leave:(st,e)=>[{d:.9,pose:exP(0,1)},{d:1.0,anim:settle(c=>ropeAtThighs(c,{z:-11.6,h:Math.PI})),props:c=>ropeFollow(c)},...ropeTurn(-11.6,-11.5,Math.PI,0),
+    {d:1.3,anim:settle(ropeFloorPick),props:c=>ropeFollow(c)},{d:1.2,anim:settle(c=>standPose(c,{z:-11.5})),props:(c,k)=>{const P=st.P;const p=P.pulW().add(P.hang);P.attPos().lerp(p,smooth(k));P.cableTo(P.attPos());if(k>=1)P.rest();}},{walk:[0,-12.35],back:true,land:1,d:.8}]};
+// upright dip: hands come up outside the bars and then down onto them (never through them)
+function dipHandsOver(c){standPose(c,{z:-11.95,arms:'none'});const hx=D.shx+.06*D.s;for(const s of[1,-1])armTo(c,sideOf(s),V(s*(hx+.1),DIP_Y+.16,DIP_Z),{hd:V(-s*.7,-.3,.6),pn:V(-s*.3,-1,0),pole:V(s*.6,.1,-.8),curl:.3});}
+// short backward (or forward) steps of about 30 cm from hips z0 to z1, arms held out to clear the handles
+function shuffle(z0,z1,o={}){const n=Math.max(1,Math.round(Math.abs(z1-z0)/.3));const out=[];for(let i=1;i<=n;i++){const z=lerp(z0,z1,i/n);out.push({d:o.d??.8,anim:settle(c=>standPose(c,{z,armOut:.6}),{step:1})});}return out;}
+ENTRY.dipA={land:1,pre:[0,-10.8],face:Math.PI,
+  enter:(st,e)=>[...turnSteps(0,-10.8,Math.PI,0),{walk:[0,-11.3],back:true,land:1,d:1.4},{d:.6,anim:settle(c=>standPose(c,{z:-11.3,armOut:.6}))},...shuffle(-11.3,-11.95),{d:.6,anim:settle(dipHandsOver)},{d:.5,anim:settle(c=>{standPose(c,{z:-11.95,arms:'none'});dipHands(c);})},{d:.7,anim:settle(exP(1,3))}],
+  leave:(st,e)=>[{d:.8,anim:settle(c=>{standPose(c,{z:-11.95,arms:'none'});dipHands(c);})},{d:.5,anim:settle(dipHandsOver)},{d:.5,anim:settle(c=>standPose(c,{z:-11.95,armOut:.6}))},...shuffle(-11.95,-11.3),{walk:[0,-10.8],land:1,d:1.4}]};
+ENTRY.inclineCurl={land:1,pre:[0,-10.45],face:Math.PI,
+  enter:(st,e)=>[...turnSteps(0,-10.45,Math.PI,0,standDB),{call:c=>{c.carry=null;}},{d:1.2,anim:(c,k)=>{st.P.setAngle(lerp(st.P._ang??30,INC_CURL,smooth(k)));standDB(c,{z:-10.45});}},{call:()=>{st.P._ang=INC_CURL;}},{walk:[0,-11.08],back:true,land:1,d:1.1},
+    {d:1.0,anim:settle(c=>{st.P.setAngle(INC_CURL);benchSitDB(c,{lean:2});})},{d:1.3,anim:settle(exP(0,1))},{d:1.0,anim:exFrom(0,1)}],
+  leave:(st,e)=>[{d:.8,pose:exP(0,1)},{d:1.2,anim:settle(c=>benchSitDB(c,{lean:2}))},{d:1.0,anim:settle(c=>standDB(c,{z:-11.08}))},{call:c=>{c.carry='db';}},{walk:[0,-10.45],land:1,d:1.0}]};
+ENTRY.concentration={land:1,pre:[0,-10.45],face:Math.PI,
+  enter:(st,e)=>[...turnSteps(0,-10.45,Math.PI,0,standDB),{walk:[0,-11.08],back:true,land:1,d:1.2},{call:c=>{c.carry=null;}},{d:1.0,anim:settle(c=>{benchSit(c,{lean:20,feetX:.36,feetZ:.42,arms:'none'});armsHang(c);})},{d:1.0,anim:settle(exP(0,1))},{d:1.0,anim:exFrom(0,1)}],
+  leave:(st,e)=>[{d:.8,pose:exP(0,1)},{d:1.0,anim:settle(c=>{benchSit(c,{lean:20,feetX:.36,feetZ:.42,arms:'none'});armsHang(c);})},{d:1.0,anim:settle(c=>standDB(c,{z:-11.08}))},{call:c=>{c.carry='db1';}},{walk:[0,-10.45],land:1,d:1.0}]};
+function skullArmsUp(c){lieBody(c,{});const T=torsoAxes(c);const pts=[];for(const s of[1,-1]){pts.push(curlArm(c,s,{T,flex:90,bend:4,grip:'pro',out:-.02}).contact);}placeBar2(ST.P,pts[0],pts[1]);}
+// lying back (or sitting up) with the bar resting on the thighs, before pressing it up over the chest
+function skullLieBar(c){lieBody(c,{});holdBarThighs(c);}
+ENTRY.skull={land:1,pre:[0,-10.45],face:Math.PI,
+  enter:(st,e)=>[...turnSteps(0,-10.45,Math.PI,0,standBarThighs),{walk:[0,-11.08],back:true,land:1,d:1.2},{call:c=>{c.carry=null;}},
+    {d:1.0,anim:settle(c=>{benchSit(c,{lean:4,arms:'none'});holdBarThighs(c);})},{d:1.4,anim:settle(skullLieBar)},{d:1.5,anim:settle(skullArmsUp)},{d:.8,anim:settle(exP(1,3))}],
+  leave:(st,e)=>[{d:.8,anim:settle(skullArmsUp)},{d:1.5,anim:settle(skullLieBar)},{d:1.4,anim:settle(c=>{benchSit(c,{lean:4,arms:'none'});holdBarThighs(c);})},{d:1.0,anim:settle(c=>{standPose(c,{z:-11.08,arms:'none'});holdBarThighs(c);})},{call:c=>{c.carry='bar';}},{walk:[0,-10.45],land:1,d:1.0}]};
+// standing with dumbbells by the rack (as the back's dbStand, with the walk clip landing its steps)
+ENTRY.dbStandA={land:1,pre:[0,-12.4],face:0,
+  enter:(st,e)=>[{walk:[0,-12],land:1,d:.8},{call:c=>{c.carry=null;}},{d:.7,pose:c=>standDB(c,{z:-12})},{d:.8,pose:exP(e.startU??0,1)},{d:.9,anim:exFrom(e.startU??0,1)}],
+  leave:(st,e)=>[{d:.8,pose:c=>standDB(c,{z:-12})},{call:c=>{c.carry='db';}},{walk:[0,-12.4],back:true,land:1,d:.7}]};
 // ---- biceps
 const BI_MUS={biLong:[1,'m'],biShort:[1,'m'],forearm:[.55,'h'],deltF:[.25,'h']};
 defEx('bbCurl',{group:'biceps',name:'Barbell curl',eq:'Barbell',part:'Biceps',station:'barStand',entry:'barStand',kind:'curl',pose:poseBBCurl,needs:'bar',
@@ -179,7 +316,7 @@ defEx('preacher',{group:'biceps',name:'Preacher curl',eq:'EZ bar',part:'Biceps (
     lift:MS('Elbows lift off the pad','Elbows rise and shoulders shrug','The elbows rise 10–15 cm off the pad at the top and the shoulders shrug.','The pad no longer fixes the shoulder; the front shoulders and traps join in.','A lighter load on the biceps and slower progress.','Elbows welded to the pad.',{lift:1,meas:'padLift',warn:'Elbows lift',warnAt:'elbow',cam:'sideFlat',mul:{deltF:3,trapU:2}}),
     bounce:MS('Bouncing at the bottom','Drops fast and jerks out','The bar drops fast into straight arms and is jerked back up.','The tendon takes the jolt.','Biceps-tendon strain: the preacher curl’s known risk.','Lower like it’s fragile.',{bounce:1,lower:.6,touch:.12,meas:'dropTime',warn:'Bounce at the bottom',warnAt:'elbow',cam:'sideFlat'}),
     half:MS('Bottom cut short','Arms stop well short of straight','The bar stops with the elbows still bent about 45°.','It skips the part of the preacher where the biceps work hardest.','Less growth near the elbow.','All the way down, soft lock.',{half:1,meas:'flexMin',warn:'Stops short',warnAt:'elbow',cam:'sideFlat'})})});
-defEx('hammer',{group:'biceps',name:'Hammer curl',eq:'Dumbbell',part:'Forearms & brachialis',station:'dbStand',entry:'dbStand',kind:'curl',pose:poseHammer,needs:'db',dbSize:'light',
+defEx('hammer',{group:'biceps',name:'Hammer curl',eq:'Dumbbell',part:'Forearms & brachialis',station:'dbStand',entry:'dbStandA',kind:'curl',pose:poseHammer,needs:'db',dbSize:'light',
   quip:'Thumbs up. Your forearms finally get invited.',mus:{forearm:[1,'m'],biLong:[.85,'m'],biShort:[.75,'m']},
   labels:[['Forearms (brachioradialis)','forearm','m'],['Biceps','biLong','m']],center:V(0,1.15,-12),cam:'sideFlat',coachSpot:{p:[-1.3,-11.3],h:Math.PI/2+.5},
   steps:steps4([['Lower under control','2 sec'],['Arms hang','thumbs forward'],['Curl to the shoulder','thumbs up'],['Squeeze','briefly']]),
@@ -190,7 +327,7 @@ defEx('hammer',{group:'biceps',name:'Hammer curl',eq:'Dumbbell',part:'Forearms &
     swing:MS('Swinging','Torso and knees bounce the weight','The torso leans back 15° or more and the knees bounce.','Momentum lifts the weight.','Lower-back strain and no arm growth.','Only the forearm moves.',{swing:1,meas:'leanRange',warn:'Body swings',warnAt:'lowback',cam:'sideFlat'}),
     cross:MS('Cross-body drift','Hands drift across the body','The hands drift 10 cm or more inside the shoulders at the top.','Load shifts to the front shoulders when it’s not on purpose.','Uneven arms.','Straight up, outside the shoulder.',{cross:1,meas:'handIn',warn:'Hands cross over',warnAt:'wrist',cam:'front',mul:{deltF:2.5}}),
     wrist:MS('Wrist curling','Wrists bend at the top','The wrists bend 20–30° at the top of each rep.','The forearm flexors steal the finish.','Wrist-tendon irritation.','Wrist straight, like a hammer handle.',{wrist:1,meas:'wristFlex',warn:'Wrists bend',warnAt:'wrist',cam:'sideFlat'})})});
-defEx('cableCurl',{group:'biceps',name:'Cable curl',eq:'Cable',part:'Biceps',station:'cableCol',entry:'cableCol',pulley:.25,att:'sbar',kind:'curl',pose:(c,F,b,u,P)=>poseBBCurl(c,{...F,cable:1},b,u,P),
+defEx('cableCurl',{group:'biceps',name:'Cable curl',eq:'Cable',part:'Biceps',station:'cableCol',entry:'cableColA',pulley:.25,att:'sbar',kind:'curl',pose:(c,F,b,u,P)=>poseBBCurl(c,{...F,cable:1},b,u,P),
   quip:'Tension at the top. The bar never had that.',mus:BI_MUS,
   labels:[['Biceps','biLong','m'],['Forearms','forearm','h']],center:V(0,1.15,-11.65),cam:'sideFlat',coachSpot:{p:[1.4,-12.1],h:-Math.PI/2},
   steps:steps4([['Lower slowly','2 sec'],['Arms almost straight','stack stays up'],['Curl to the chest','elbows by the ribs'],['Squeeze','one second']]),
@@ -214,7 +351,7 @@ defEx('concCurl',{group:'biceps',name:'Concentration curl',eq:'Dumbbell',part:'B
     half:MS('Half rep at the bottom','Arm never straightens','The elbow stays bent about 40° at the bottom.','You skip the stretched range.','Less growth.','Straight arm at the bottom.',{half:1,meas:'flexMinR',warn:'Stops short',warnAt:'elbow',cam:'front'})})});
 // ---- triceps
 const TRI_MUS={triLong:[1,'m'],triLat:[1,'m']};
-defEx('cgBench',{group:'triceps',name:'Close-grip bench press',eq:'Barbell',part:'Triceps (all heads)',station:'flatRack',entry:'barBench',kind:'press',pose:poseBar,calib:'bar',fam:'bar',
+defEx('cgBench',{group:'triceps',name:'Close-grip bench press',eq:'Barbell',part:'Triceps (all heads)',station:'flatRack',entry:'barBenchA',kind:'press',pose:poseBar,calib:'bar',fam:'bar',
   quip:'Same bench. Narrower hands. Your triceps noticed.',mus:{triLat:[1,'m'],triLong:[.9,'m'],pecL:[.6,'h'],pecU:[.5,'h'],deltF:[.55,'h']},
   labels:[['Triceps','triLat','m'],['Chest','pecL','h'],['Front shoulder','deltF','h']],center:V(0,.78,-12.1),cam:'side',coachSpot:{p:[-.3,-13.45],h:0},
   steps:steps4([['Bring it down','2 sec, elbows tucked'],['Touch the lower chest','light touch'],['Press up','elbows brush the ribs'],['Lock out','over the shoulders']]),
@@ -225,7 +362,7 @@ defEx('cgBench',{group:'triceps',name:'Close-grip bench press',eq:'Barbell',part
     narrow:MS('Grip too narrow','Hands almost touching','The hands are under 25 cm apart, wrists bent back, elbows flaring to make room.','Wrist and elbow strain, and less weight.','Wrist and elbow tendon pain.','Shoulder width, not thumbs.',{grip:.105,flare:48,meas:'handGap',warn:'Hands too close',warnAt:'wrist',cam:'feet'}),
     flare:MS('Elbows flared','Elbows out, bar to the nipples','The elbows flare to 60–90° and the bar drifts up to the nipple line.','The chest and front shoulders take the load.','Shoulder stress; triceps undertrained.','Elbows brush the ribs.',{flare:78,touchZ:.04,meas:'flare',warn:'Elbows flared',warnAt:'shoulder',cam:'above',strain:['deltF'],mul:{pecL:1.4,triLat:.7}}),
     hips:MS('Hips lift','Hips rise off the bench','The bottom lifts off the bench as you press.','Shorter range and the lower back arches under load.','Lower-back strain.','Bottom down, drive the floor.',{hips:1,meas:'hips',warn:'Hips off the bench',warnAt:'hips',cam:'feetLow'})})});
-defEx('pushdown',{group:'triceps',name:'Rope pushdown',eq:'Cable',part:'Triceps (outer heads)',station:'cableCol',entry:'cableCol',pulley:2.1,att:'rope',kind:'curl',pose:posePushdown,
+defEx('pushdown',{group:'triceps',name:'Rope pushdown',eq:'Cable',part:'Triceps (outer heads)',station:'cableCol',entry:'cableColA',pulley:2.0,att:'rope',kind:'curl',pose:posePushdown,
   quip:'Elbows glued. Only the forearms are allowed to move.',mus:TRI_MUS,
   labels:[['Triceps','triLat','m']],center:V(0,1.1,-11.65),cam:'sideFlat',coachSpot:{p:[1.4,-12.1],h:-Math.PI/2},
   steps:steps4([['Return slowly','to chest height'],['Elbows at the ribs','hands at the chest'],['Push to the thighs','split the rope'],['Lock out','squeeze']]),
@@ -258,7 +395,7 @@ defEx('skull',{group:'triceps',name:'Skull crusher',eq:'EZ bar',part:'Triceps (l
     flare:MS('Elbows flare out','Elbows spread to the sides','The elbows spread from about 35 cm to 60 cm apart.','The shoulders and chest join in and the elbows take a sideways load.','Elbow-tendon pain: the classic skull-crusher complaint.','Elbows in, pointing up.',{flare:1,meas:'elbowGap',warn:'Elbows flare',warnAt:'elbow',cam:'feet'}),
     rock:MS('Upper arms rock','Arms swing like a pullover','The upper arms swing back and forth by about 40° every rep.','The lats and shoulders move the bar.','Triceps undertrained.','Freeze the upper arms.',{rock:1,meas:'armRange',warn:'Upper arms rock',warnAt:'shoulder',cam:'sideFlat',mul:{lats:1.5}}),
     half:MS('Bar to the forehead','Half range, aimed at the face','The bar stops just above the forehead with the elbows bent only about 70°.','You skip the stretched range.','Less growth, and a real risk of hitting your forehead.','Past the head, not onto it.',{half:1,meas:'flexMax',warn:'Too short',warnAt:'elbow',cam:'sideFlat'})})});
-defEx('triDip',{group:'triceps',name:'Upright dip',eq:'Bodyweight',part:'Triceps (all heads)',station:'tower',entry:'dip',kind:'dip',pose:poseDip,
+defEx('triDip',{group:'triceps',name:'Upright dip',eq:'Bodyweight',part:'Triceps (all heads)',station:'tower',entry:'dipA',kind:'dip',pose:poseDip,
   quip:'Stay tall; lean forward and it’s chest day.',mus:{triLat:[1,'m'],triLong:[1,'m'],pecL:[.55,'h'],deltF:[.55,'h']},
   labels:[['Triceps','triLat','m'],['Chest','pecL','h'],['Front shoulder','deltF','h']],center:V(0,1.3,-11.95),cam:'sideFlat',coachSpot:{p:[1.35,-11.2],h:-Math.PI/2-.4},
   steps:steps4([['Lower yourself','2 sec, upright'],['Upper arms level','with the floor'],['Press back up','elbows back'],['Lock out','shoulders down']]),
@@ -269,7 +406,7 @@ defEx('triDip',{group:'triceps',name:'Upright dip',eq:'Bodyweight',part:'Triceps
     flare:MS('Elbows flare','Elbows point out to the sides','The elbows flare to 45–60° and point sideways.','It turns into a chest dip with extra shoulder load.','Front-shoulder strain.','Elbows point behind you.',{flare:60,lean:16,meas:'dipFlare',warn:'Elbows flared',warnAt:'shoulder',cam:'front',strain:['deltF'],mul:{pecL:1.5}}),
     deep:MS('Too deep','Shoulders sink below the elbows','The shoulders drop well below the elbows at the bottom.','The front of the shoulder is loaded at the end of its range.','Shoulder impingement or instability.','Stop at level.',{deep:1.5,meas:'dipDepth',warn:'Too deep',warnAt:'shoulder',cam:'sideFlat',strain:['deltF']}),
     shrug:MS('Shrugging and swinging','Shoulders up, legs swinging','The shoulders rise toward the ears and the legs swing.','Momentum helps and the neck strains.','Fewer reps that count, and neck strain.','Quiet legs, shoulders down.',{shrug:1,meas:'shrug',warn:'Shrugging',warnAt:'neck',cam:'front',strain:['trapU']})})});
-defEx('kickback',{group:'triceps',name:'Dumbbell kickback',eq:'Dumbbell',part:'Triceps (long head)',station:'dbFlat',entry:'dbRowBench',kind:'curl',pose:poseKickback,needs:'db1',dbSize:'light',
+defEx('kickback',{group:'triceps',name:'Dumbbell kickback',eq:'Dumbbell',part:'Triceps (long head)',station:'dbFlat',entry:'dbRowBenchA',kind:'curl',pose:poseKickback,needs:'db1',dbSize:'light',
   quip:'Light weight, straight arm, one honest second.',mus:{triLong:[1,'m'],triLat:[.9,'m'],deltR:[.35,'h']},
   labels:[['Triceps','triLong','m'],['Rear shoulder','deltR','h']],center:V(.25,.75,-11.9),cam:'rearR',coachSpot:{p:[1.6,-12.6],h:-Math.PI/2-.4},
   steps:steps4([['Lower the forearm','1 sec'],['Forearm hangs','upper arm level'],['Kick back','straight arm'],['Squeeze','one second']]),

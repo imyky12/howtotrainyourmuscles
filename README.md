@@ -38,6 +38,7 @@ The tests drive the page in headless Chromium through `index.html?test` (renderi
 
 - `t3.cjs`: every exercise and mistake; prints the right-way and mistake readings. `NOSHOT=1` skips screenshots, `EXS=squat,ohp` limits the list.
 - `t6.cjs`: a whole plan clicked through like a user (`G=legs PLAN=1`); reports people walking through equipment and cameras inside walls.
+- `t7.cjs`: the animation probe (`G=legs`): plays every exercise of a group through fetching props, walking, getting on, reps, getting off and putting things back, frame by frame, and lists any body part inside equipment, below the floor, snapping between frames, or any dumbbell/bar jumping. `probeall.sh` runs all seven groups.
 - `tspots.cjs`: every walk-up and coach spot is free and reachable.
 - `t1.cjs`: the story from the landing page to the first exercise.
 

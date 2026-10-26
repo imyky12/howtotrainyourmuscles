@@ -15,10 +15,20 @@ function makeChar(g,U){
   const hipRest=bones.Hips.position.clone();
   const c={root:m,bones,rest,hipRest,mixer,act,mats,meshes,cur:null,heading:0,pos:V(),speed:0,hold:[],U};
   scene.add(m);return c;}
-function play(c,name,fade=.35,ts=1){const a=c.act[name];if(c.cur===a){a.setEffectiveTimeScale(ts);return;}if(!c.cur&&c.root.visible&&typeof fadeFromPose==='function'){fadeFromPose(c,Math.max(.3,fade));fade=0;}a.reset().setEffectiveTimeScale(ts).setEffectiveWeight(1).fadeIn(fade).play();if(c.cur)c.cur.fadeOut(fade);c.cur=a;}
+// one clip plays at a time, at full weight; the pose it takes over from fades out over a snapshot (applyFade), so the
+// mixer never dips toward the bind pose while two clips cross-fade with weights that do not add up to one
+function play(c,name,fade=.35,ts=1){const a=c.act[name];if(c.cur===a){a.setEffectiveTimeScale(ts);return;}
+  // the fade starts from the pose on screen: the last clipPost output while a clip was playing (the bones may already hold the
+  // raw clip pose for this frame), else the bones as they are
+  if(c.root.visible&&typeof fadeFromPose==='function'){c.root.updateMatrixWorld(true);fadeFromPose(c,Math.max(.3,fade),c.cur?(c._disp||(c.fade&&c.fade.t===0?c.fade.s:snapshot(c))):snapshot(c));}
+  const running=a.isRunning();a.stopFading();if(!running)a.reset();a.setEffectiveTimeScale(ts).setEffectiveWeight(1).play();
+  // stopping an action restores the bind pose on the bones only it animates; keep what is on the bones
+  const keep={};for(const k in c.bones)keep[k]=c.bones[k].quaternion.clone();const hp=c.bones.Hips.position.clone();
+  for(const k in c.act){const o=c.act[k];if(o!==a&&o.isRunning())o.stop();}
+  for(const k in c.bones)c.bones[k].quaternion.copy(keep[k]);c.bones.Hips.position.copy(hp);c.cur=a;}
 // stopping clips makes three.js restore the bind pose (T-pose), so keep the current pose across the stop
-function stopClips(c){const keep={};for(const k in c.bones)keep[k]=c.bones[k].quaternion.clone();const hp=c.bones.Hips.position.clone();c.mixer.stopAllAction();c.cur=null;for(const k in c.bones)c.bones[k].quaternion.copy(keep[k]);c.bones.Hips.position.copy(hp);c.root.updateMatrixWorld(true);}
-function place(c){c.root.position.copy(c.pos);c.root.quaternion.setFromAxisAngle(V(0,1,0),c.heading);}
+function stopClips(c){c._disp=null;c.fade=null;c._lift=0;const keep={};for(const k in c.bones)keep[k]=c.bones[k].quaternion.clone();const hp=c.bones.Hips.position.clone();c.mixer.stopAllAction();c.cur=null;for(const k in c.bones)c.bones[k].quaternion.copy(keep[k]);c.bones.Hips.position.copy(hp);c.root.updateMatrixWorld(true);}
+function place(c){c._lift=0;c.root.position.copy(c.pos);c.root.quaternion.setFromAxisAngle(V(0,1,0),c.heading);}
 function turnTo(c,heading,dt,k=5){let dh=angDiff(heading,c.heading);c.heading+=dh*Math.min(1,dt*k);place(c);return Math.abs(dh)<.03;}
 function angDiff(a,b){return ((a-b+Math.PI*3)%(Math.PI*2))-Math.PI;}
 
@@ -66,11 +76,15 @@ function handFrame(c,side){const b=c.bones[side+'Hand'];const q=b.getWorldQuater
 function gripPoint(c,side,palm=.075,off=.022){const f=handFrame(c,side);return f.p.addScaledVector(f.hd,palm*D.s).addScaledVector(f.pn,off*D.s);}
 
 // snapshots and blending; blends pivot on the hips so a body never swings through a bench
-function snapshot(c){c.root.updateMatrixWorld(true);const s={hip:wpos(c.bones.Hips),quat:c.root.quaternion.clone(),hl:c.bones.Hips.position.clone(),b:{}};for(const k in c.bones)s.b[k]=c.bones[k].quaternion.clone();return s;}
+function snapshot(c){c.root.updateMatrixWorld(true);const s={hip:wpos(c.bones.Hips),quat:c.root.quaternion.clone(),hl:c.bones.Hips.position.clone(),b:{},fmin:footMin(c)};for(const k in c.bones)s.b[k]=c.bones[k].quaternion.clone();return s;}
+function footMin(c){const B=c.bones;let m=1e9;for(const n of['LeftFoot','RightFoot','LeftToeBase','RightToeBase']){const b=B[n];if(b)m=Math.min(m,wpos(b).y);}return m;}
 function applySnap(c,s){blendTo(c,s,s,0);}
+// blend pivots on the hips; a foot that is on the floor at either end of the blend never dips below the lower of the two
+// endpoints' feet on the way (a half-bent leg is longer than the straight-line hip path allows)
 function blendTo(c,a,b,t){const r=c.root;r.quaternion.slerpQuaternions(a.quat,b.quat,t);for(const k in c.bones)c.bones[k].quaternion.slerpQuaternions(a.b[k],b.b[k],t);
   c.bones.Hips.position.lerpVectors(a.hl,b.hl,t);r.position.set(0,0,0);r.updateMatrixWorld(true);const off=wpos(c.bones.Hips);
-  r.position.copy(a.hip).lerp(b.hip,t).sub(off);r.updateMatrixWorld(true);}
+  r.position.copy(a.hip).lerp(b.hip,t).sub(off);r.updateMatrixWorld(true);
+  if(t>0&&t<1&&a.fmin!==undefined&&b.fmin!==undefined){const lim=Math.min(a.fmin,b.fmin);if(lim<.12){const cur=footMin(c);if(cur<lim-1e-4){r.position.y+=lim-cur;r.updateMatrixWorld(true);}}}}
 
 // ---- generic limb placement
 const DEG=Math.PI/180;

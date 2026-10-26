@@ -34,7 +34,7 @@ function chestTopAt(c,bz){let top=-9;const v=V();c.root.updateMatrixWorld(true);
     for(let i=0;i<n;i++){o.getVertexPosition(i,v);v.applyMatrix4(o.matrixWorld);if(Math.abs(v.x)<.12&&Math.abs(v.z-bz)<.03&&v.y>top)top=v.y;}});return top;}
 const BAR_R=.014;
 // done once per exercise, in the canonical frame (before the station transform)
-function calibrateEx(e){if(!e.calib||e._cal)return;const P=STATIONS[e.station].P;const keep=snapshot(hero);
+function calibrateEx(e){if(!e.calib||e._cal)return;const P=STATIONS[e.station].P;const keep=snapshot(hero),props=propState(P); // the poses move the bar: put it back
   for(const k in e.forms){const F=e.forms[k];F.touchY=undefined;
     for(let it=0;it<3;it++){e.pose(hero,F,{phase:1,k:.5},0,P);F.touchY=chestTopAt(hero,hero._touchZw)+(e.fam==='bar'?BAR_R+.002:0);}}
-  e._cal=true;applySnap(hero,keep);}
+  e._cal=true;applySnap(hero,keep);setPropState(props);}

@@ -13,7 +13,7 @@ for(const k of ['bbIncline','bbFlat','bbDecline','dbIncline','dbFlat','dbFly','m
   for(const f in o.forms){const F=o.forms[f];if(F.angle===undefined&&o.angle!==undefined)F.angle=o.angle;F.mul=chestMul(F.mul);if(F.delRed)F.strain=['deltF'];}
   const upE=o.mus.up-o.mus.low;
   const c=CENTER[o.fam];
-  defEx(k,{...o,group:'chest',part:CHEST_PART[k],fam:o.fam,pose,station:CHEST_ST[k],entry:CHEST_ENTRY[o.fam],
+  defEx(k,{...o,group:'chest',part:CHEST_PART[k],fam:o.fam,pose,station:CHEST_ST[k],entry:o.fam==='bar'&&o.angle<0?'barBenchDecline':CHEST_ENTRY[o.fam],
     mus:chestMus(o.mus),labels:[[upE>.3?'Upper chest':upE<-.3?'Lower chest':'Chest',upE>.3?'pecU':'pecL','m'],['Front shoulder','deltF','h'],...(o.mus.tri>=.2?[['Triceps','triLat','h']]:[])],
     center:V(0,c[0]+(o.angle>0?.15:0),c[1]-(o.angle>0?.15:0)),coachSpot:o.coach==='head'?{p:[-.3,o.angle>0?-13.7:-13.45],h:0}:{p:[-1.62,-11.3],h:Math.PI/2},
     needs:o.fam==='db'||o.fam==='fly'?'db':null});}

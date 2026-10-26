@@ -5,7 +5,7 @@ const W=+(process.env.W||1000),H=+(process.env.H||640),G=process.env.G||'chest',
   const b = await chromium.launch({ args: ['--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader','--ignore-gpu-blocklist'] });
   const p = await b.newPage({ viewport: { width: W, height: H } });
   p.on('pageerror', e => console.log('PAGEERR', e.message, (e.stack||'').split('\n').slice(1,3).join(' | ')));
-  await p.goto('http://localhost:8767/index.html?test');
+  await p.goto('http://localhost:'+(process.env.PORT||8767)+'/index.html?test');
   await p.waitForFunction(() => window.__ready, null, { timeout: 120000 });
   const snap = async n => { await p.waitForTimeout(120); await p.screenshot({ path: `out/f/${G}${PLAN}-${n}.png` }); };
   await p.evaluate(()=>{__api.start();}); await p.evaluate(()=>__advance(.5)); await p.evaluate(()=>__api.skipIntro()); await p.evaluate(()=>__advance(1));

@@ -56,18 +56,28 @@ function goExercise(k){const e=EXS[k];if(!e)return;closePanels();showPlan(false)
   const isBar=e.needs==='bar'||e.needs==='ez';const start=()=>{if(isBar)fetchBar(e,()=>approach(e));else if(e.needs)fetchDB(e,()=>approach(e));else approach(e);};
   if(flow==='exercise')leaveStation(start);else start();}
 function approach(e){setFlow('walking');walkStatus('Off to the '+STATIONS[e.station].name);const pr=preOf(e);
-  coachTo(e);goTo(hero,pr.p,{face:pr.face,done:()=>arrive(e)});}
+  coachTo(e);goTo(hero,pr.p,{face:pr.face,land:ENTRY[e.entry].land,done:()=>arrive(e)});}
 function arrive(e){EX=e;EXK=e.key;FORMS=e.forms;ST=STATIONS[e.station];form='good';
   if(e.needs==='bar'||e.needs==='ez'){ST.P.bar=hero.bar;ST.g.attach(hero.bar);}
   else if(e.needs){ST.P.db=hero.dbs;hero.dbs.forEach(d=>{if(d)ST.g.attach(d);});}
   calibrateEx(e);
   setFlow('entering');walkStatus('');cam.orbit=true;cam.center.copy(toW(ST,e.center));fitOrbitFromCam();setPreset(e.cam||'side');
-  const steps=ENTRY[e.entry].enter(ST,e);runSeq(hero,ST,steps,()=>startExercise());}
+  const en=ENTRY[e.entry];let steps=en.enter(ST,e);
+  if(hero.carry==='backBar'&&hero.barFr)steps=[...barDownSteps({x:en.pre[0],z:en.pre[1],h:en.face}),...steps]; // the entry then sees the bar in the hands, as before
+  runSeq(hero,ST,steps,()=>startExercise());}
+// canonical spot (x, z, heading) the character is standing on right now
+function hereC(c,st){const p=toC(st,c.pos);return {x:p.x,z:p.z,h:angDiff(c.heading,st.rot)};}
 function fitOrbitFromCam(){const d=V().subVectors(cam.pos,cam.center);cam.r=d.length();cam.az=Math.atan2(d.x,d.z);cam.el=Math.asin(clamp(d.y/cam.r,-1,1));}
-function startExercise(){setFlow('exercise');repT=0;rep=1;fatigue=0;form='good';setForm('good');showHUD(true);renderExerciseUI();hero._m=null;
+function startExercise(){setFlow('exercise');form='good';setForm('good');repT=matchRepStart();rep=1;fatigue=0;showHUD(true);renderExerciseUI();hero._m=null;hero._py=undefined;
   if(SES.plan)SES.done.add(EXK);}
+// the rep clock starts at whichever end of the rep (top or bottom) the entry left the hands at, so the first frame does not jump
+function matchRepStart(){const F=FORMS.good,T=repTiming(F);const keep=snapshot(hero),props=propState(ST.P);const B=hero.bones;
+  const hands=()=>[wpos(B.LeftHand),wpos(B.RightHand),wpos(B.Hips)];const cur=hands();let best=0,bd=1e9;
+  for(const t of[0,T.lower+T.touch]){drive(hero,F,t,0);const h=hands();const d=h.reduce((m,p,i)=>Math.max(m,p.distanceTo(cur[i])),0);if(d<bd-1e-4){bd=d;best=t;}}
+  applySnap(hero,keep);setPropState(props);hero._m=null;return best;}
 function leaveStation(then){const e=EX;showHUD(false);setForm('good');splitOn=false;twin.root.visible=false;clearGlows(MU);setFlow('leaving');
-  const steps=ENTRY[e.entry].leave(ST,e);runSeq(hero,ST,steps,()=>{
+  const steps=ENTRY[e.entry].leave(ST,e);const up=e.needs==='bar'&&hero.barFr?barUpSteps(ST):[]; // a straight bar goes up onto the shoulders for the walk back
+  runSeq(hero,ST,[...steps,...up],()=>{
     const P=ST.P;cam.orbit=false;
     if(e.needs==='bar'||e.needs==='ez'){scene.attach(hero.bar);P.bar=null;returnBar(()=>{then&&then();});}
     else if(e.needs){hero.dbs.forEach(d=>d&&scene.attach(d));P.db=null;returnDB(()=>{then&&then();});}else then&&then();});}
@@ -79,21 +89,30 @@ function pairFrame(pair){ // canonical frame: person at (0,-12) facing +z, the p
   if(pair.frame)return pair.frame;const w=pair.slot.clone().add(V(-.34*pair.tier,0,0)).applyMatrix4(pair.g.matrixWorld);const rot=Math.PI/2;
   const g=new THREE.Group();g.rotation.y=rot;g.position.copy(w.clone().setY(0)).sub(V(0,0,-11.45).applyAxisAngle(V(0,1,0),rot));scene.add(g);g.updateMatrixWorld(true);
   return pair.frame={g,q:qY(rot),rot,slotY:pair.slot.y,pre:toW({g},V(0,0,-12.35))};}
-function pickupPose(c,fr,pair,k){const low=pair.tier===0;const one=hero.dbOne||(EXS[pending]&&EXS[pending].needs==='db1');const hy=fr.slotY+.0;
-  standPose(c,{z:-11.85,hinge:low?42:30,drop:low?.16:.05,back:low?.12:.08,arms:'none',stance:.14});
-  for(const s of[1,-1]){const sd=sideOf(s);if(one&&s>0){armsHang(c,0,1);continue;}armTo(c,sd,V(s*.2,hy,-11.45+.34*pair.tier),{hd:V(0,-.55,1),pn:V(0,-1,.25),pole:V(s*.5,.1,-.8),curl:k});}}
-function fetchDB(e,then){const pair=pickPair(e);hero.pair=pair;const fr=pairFrame(pair);setFlow('walking');walkStatus('Grabbing dumbbells first');
-  goTo(hero,fr.pre,{face:fr.rot,done:()=>{
-    runSeq(hero,fr,[{walk:[0,-11.85],d:.6},
-      {d:1.1,pose:c=>pickupPose(c,fr,pair,.3)},
-      {d:.35,pose:c=>pickupPose(c,fr,pair,1),props:()=>{}},
-      {call:c=>{const one=e.needs==='db1';pair.dbs.forEach((d,i)=>{if(one&&i===0)return;scene.attach(d);grab(c,d,i===0?'Left':'Right',{align:'thumb'});});c.dbs=one?[null,pair.dbs[1]]:[pair.dbs[0],pair.dbs[1]];c.dbOne=one;}},
-      {d:1.0,pose:c=>standDB(c,{z:-11.85})},
-      {walk:[0,-12.35],back:true,d:.9},{call:c=>{c.carry=c.dbOne?'db1':'db';}}],()=>then());}});}
-function returnDB(then){const pair=hero.pair;if(!pair){then();return;}const fr=pairFrame(pair);walkStatus('Putting the dumbbells back');setFlow('walking');
-  goTo(hero,fr.pre,{face:fr.rot,done:()=>{
-    runSeq(hero,fr,[{call:c=>{c.carry=null;}},{walk:[0,-11.85],d:.6},{d:.25,pose:c=>standDB(c,{z:-11.85})},
-      {d:1.1,pose:c=>pickupPose(c,fr,pair,1)},
-      {call:c=>{c.hold=[];c.dbOne=false;pair.dbs.forEach((d,i)=>{pair.g.attach(d);d.position.copy(pair.home[i].p);d.quaternion.copy(pair.home[i].q);});c.dbs=null;}},
-      {d:.4,pose:c=>pickupPose(c,fr,pair,.2)},
-      {d:1.0,pose:c=>standPose(c,{z:-11.85})},{walk:[0,-12.35],back:true,d:.9}],()=>{hero.pair=null;then();});}});}
+// where to stand for each tier, and how deep to bend: the shallowest hinge that puts both handles within reach of the hands
+const DBPICK=tier=>tier===0?{z:-12.0,back:.14,hmin:44,maxDrop:.36,dx:.05}:{z:-11.8,back:.08,hmin:50,maxDrop:.14,dx:.05};
+function pickupPose(c,fr,pair,k){const one=c.dbOne||(EXS[pending]&&EXS[pending].needs==='db1');const hy=fr.slotY,hz=-11.45+.34*pair.tier;
+  const o=DBPICK(pair.tier);const b=bendToReach(hy,hz,o);standPose(c,{z:o.z,hinge:b.hinge,drop:b.drop,back:o.back,arms:'none',stance:.14});
+  for(const s of[1,-1]){const sd=sideOf(s);if(one&&s>0){restHandThigh(c,s);continue;}armTo(c,sd,V(s*.2,hy,hz),{hd:V(0,-.55,1),pn:V(0,-1,.25),pole:V(s*.5,.1,-.8),curl:k});}}
+// the free hand rests on the thigh while bending down
+function restHandThigh(c,s){const sd=sideOf(s);const K=wpos(c.bones[sd+'Leg']),H=wpos(c.bones[sd+'UpLeg']);const T=torsoAxes(c);
+  armTo(c,sd,H.lerp(K,.55).add(V(s*.02,.06,0)),{hd:V().subVectors(K,H).normalize(),pn:V(0,-1,0),pole:T.L.clone().multiplyScalar(s*.5).addScaledVector(T.F,-.5),curl:.45});}
+// walk up, bend with open hands to the handles, close the fingers (a clear grip), a beat, then lift: the dumbbells only ever move with the hands
+function fetchDB(e,then){const pair=pickPair(e);hero.pair=pair;const fr=pairFrame(pair);const z0=DBPICK(pair.tier).z;hero.dbOne=e.needs==='db1';setFlow('walking');walkStatus('Grabbing dumbbells first');
+  goTo(hero,fr.pre,{face:fr.rot,land:1,done:()=>{
+    runSeq(hero,fr,[{walk:[0,z0],land:1,d:.6},
+      {d:1.1,pose:c=>pickupPose(c,fr,pair,.1)},
+      {d:.5,pose:c=>pickupPose(c,fr,pair,1)},
+      {d:.25,pose:c=>pickupPose(c,fr,pair,1)},
+      {call:c=>{const one=c.dbOne;pair.dbs.forEach((d,i)=>{if(one&&i===0)return;scene.attach(d);grab(c,d,i===0?'Left':'Right',{align:'thumb'});});c.dbs=one?[null,pair.dbs[1]]:[pair.dbs[0],pair.dbs[1]];}},
+      {d:1.1,pose:c=>standDB(c,{z:z0})},
+      {call:c=>{c.carry=c.dbOne?'db1':'db';}},{walk:[0,-12.35],back:true,land:1,d:.9}],()=>then());}});}
+// the reverse: lower them into their own slot, open the hands, stand up
+function returnDB(then){const pair=hero.pair;if(!pair){then();return;}const fr=pairFrame(pair);const z0=DBPICK(pair.tier).z;walkStatus('Putting the dumbbells back');setFlow('walking');
+  goTo(hero,fr.pre,{face:fr.rot,land:1,done:()=>{
+    runSeq(hero,fr,[{walk:[0,z0],land:1,d:.6},{call:c=>{c.carry=null;}},{d:.5,pose:c=>standDB(c,{z:z0})},
+      {d:1.2,pose:c=>pickupPose(c,fr,pair,1)},
+      {d:.2,pose:c=>pickupPose(c,fr,pair,1)},
+      {call:c=>{c.hold=[];pair.dbs.forEach((d,i)=>{pair.g.attach(d);d.position.copy(pair.home[i].p);d.quaternion.copy(pair.home[i].q);});c.dbs=null;}},
+      {d:.5,pose:c=>pickupPose(c,fr,pair,.1)},
+      {d:1.0,pose:c=>standPose(c,{z:z0})},{call:c=>{c.dbOne=false;}},{walk:[0,-12.35],back:true,land:1,d:.9}],()=>{hero.pair=null;then();});}});}

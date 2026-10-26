@@ -5,7 +5,7 @@
 const NAV={x0:-20,z0:-24,x1:20,z1:12,c:.1};NAV.nx=Math.round((NAV.x1-NAV.x0)/NAV.c);NAV.nz=Math.round((NAV.z1-NAV.z0)/NAV.c);
 NAV.solid=new Uint8Array(NAV.nx*NAV.nz); // footprint of things (no clearance)
 NAV.block=new Uint8Array(NAV.nx*NAV.nz); // footprint grown by the walker's radius
-NAV.boxes=[];
+NAV.boxes=[];NAV.extra=[]; // extra: footprints stations add by hand (a loaded bar resting on the floor)
 const NAV_R=.34;
 const navIdx=(i,j)=>j*NAV.nx+i;
 const navCell=(x,z)=>[Math.floor((x-NAV.x0)/NAV.c),Math.floor((z-NAV.z0)/NAV.c)];
@@ -16,6 +16,7 @@ function buildNav(){
   const add=(x0,x1,z0,z1)=>{NAV.boxes.push([x0,x1,z0,z1]);};
   scene.traverse(o=>{if(!o.isMesh||o.isSkinnedMesh||navSkip(o))return;let p=o;while(p){if(p.userData&&(p.userData.walkable||p.userData.prop))return;p=p.parent;}
     bb.setFromObject(o);if(bb.min.y>1.75||bb.max.y<.06)return;if(bb.max.x-bb.min.x>30||bb.max.z-bb.min.z>30)return;add(bb.min.x,bb.max.x,bb.min.z,bb.max.z);});
+  for(const b of NAV.extra)add(...b);
   for(const [x0,x1,z0,z1] of NAV.boxes){stamp(NAV.solid,x0,x1,z0,z1,0);stamp(NAV.block,x0,x1,z0,z1,NAV_R);}
   // the street edge and far ends are out of bounds
   stamp(NAV.block,-20,20,9.5,12,0);}

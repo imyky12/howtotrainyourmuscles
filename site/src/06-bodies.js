@@ -11,7 +11,7 @@ function lieBody(c,o){let q=qX(o.angle||0).multiply(qLie);
   B.Head.quaternion.multiply(_q.setFromAxisAngle(V(1,0,0),.05+(o.look||0)*.12));
   clav(c,{shrug:o.shrug??.07});c.root.updateMatrixWorld(true);
   for(const s of[1,-1]){const side=sideOf(s);
-    if(o.feet==='rollers')legTo(c,side,V(s*.12,.27,HIPS_Z+.66),V(s*.1,1,.5),.25);
+    if(o.feet==='rollers')legTo(c,side,V(s*.12,.33,HIPS_Z+.65),V(s*.1,1,.5),.25); // thighs over the knee pad, ankles hooked behind the rollers
     else if(o.feet==='knees')legTo(c,side,V(s*.14,BENCH_TOP+.12,HIPS_Z+.36),V(s*.1,1,.3),.2);
     else legTo(c,side,V(s*.31,.09,HIPS_Z+.47),V(s*.25,1,.55),-.35);}}
 function seatBody(c,o){setRoot(c,qX(-SEAT_RECLINE+(o.lean||0)),V(0,SEAT_TOP+.1*D.s-(o.drop||0),SEAT_Z));resetRest(c);
@@ -20,7 +20,7 @@ function seatBody(c,o){setRoot(c,qX(-SEAT_RECLINE+(o.lean||0)),V(0,SEAT_TOP+.1*D
 // split stance between cable towers
 function standBody(c,o){setRoot(c,qX(o.lean||0),V(0,D.hips.y-.04*D.s,CZ));resetRest(c);
   clav(c,{shrug:o.shrug??.03});c.root.updateMatrixWorld(true);
-  legTo(c,'Left',V(.13,D.ankY,CZ+.30),V(.1,.2,1));legTo(c,'Right',V(-.13,D.ankY+.05,CZ-.36),V(-.1,.2,1),.45);}
+  legTo(c,'Left',V(.13,D.ankY,CZ+.30),V(.1,.2,1));legTo(c,'Right',V(-.13,D.ankY+.05,CZ-.36),V(-.1,.2,1),.3);}
 // general standing pose: feet planted, hips over the feet (pushed back by the hinge), knees bent by 'drop'
 // o: x,z (between the feet), h (heading), hinge (deg, torso forward), drop (m the hips go down), back (m hips go back),
 //    stance (half the distance between the ankles), toe (deg the feet turn out), feet:[[x,z],[x,z]] (overrides), round (spine flex, deg)
@@ -33,8 +33,8 @@ function standPose(c,o={}){const h=o.h||0,x=o.x||0,z=o.z??-12,hg=(o.hinge||0)*DE
   const st=o.stance??.11*D.s;const toe=(o.toe??8)*DEG;
   for(const s of[1,-1]){const side=sideOf(s);const f=o.feet?V(o.feet[s>0?0:1][0],0,o.feet[s>0?0:1][1]):V(s*st,0,.02);
     const A=f.clone().applyQuaternion(qh).add(V(x,D.ankY+(o.heel?o.heel[s>0?0:1]:0),z));const fwd=V(s*Math.sin(toe),0,Math.cos(toe)).applyQuaternion(qh);
-    const pole=fwd.clone().add(V(0,.25,0)).addScaledVector(V(s,0,0).applyQuaternion(qh),o.kneeIn?-o.kneeIn*s:0);
-    legTo(c,side,A,pole);footTo(c,side,A.clone().addScaledVector(fwd,.15).setY(D.ankY*.35+(o.heel?o.heel[s>0?0:1]*1.5:0)));}
+    const pole=fwd.clone().add(V(0,.25,0)).addScaledVector(V(s,0,0).applyQuaternion(qh),o.kneeIn?-o.kneeIn:0); // each knee toward the midline
+    legTo(c,side,A,pole);footTo(c,side,A.clone().addScaledVector(fwd,.15).setY(D.ankY*.35));} // a raised heel keeps its toes on the floor
   if(o.arms!=='none')armsHang(c,o.armOut||0);}
 // arms hanging at the sides, palms facing the thighs
 function armsHang(c,out=0,side){const T=torsoAxes(c);for(const s of side?[side]:[1,-1]){const sd=sideOf(s);const down=V(0,-1,0);
@@ -48,3 +48,10 @@ function benchSit(c,o={}){const z=o.z??HIPS_Z+.22;setRoot(c,qX((o.lean??8)*DEG),
 // seated upright on a bench end with feet together in front (machines, upright bench)
 function chairSit(c,o={}){const y=o.y??SEAT_TOP,z=o.z??SEAT_Z;setRoot(c,qX((o.lean??0)*DEG-(o.recline||0)*DEG),V(0,y+.1*D.s,z));resetRest(c);clav(c,{shrug:.03});c.root.updateMatrixWorld(true);
   for(const s of[1,-1])legTo(c,sideOf(s),V(s*(o.fx??.17),D.ankY,z+(o.fz??.46)),V(s*.15,.4,1));}
+// how far to hinge and to bend the knees so that both hands reach a handle at (hy, hz) in the canonical frame, standing at z
+// with the hips pushed back by `back`: the shallowest hinge (from hmin, deg) whose knee bend stays within maxDrop. dx = how far
+// the hand sits outside the shoulder, R = shoulder-to-handle distance that leaves the elbow a little soft.
+function bendToReach(hy,hz,o={}){const T=D.sh.clone().sub(D.hips);const R=o.R??.5*D.s,dx=o.dx||0;const R2=R*R-dx*dx;const back=o.back||0,z=o.z??-12;
+  let best=null;for(let h=o.hmin??20;h<=(o.hmax??78);h+=2){const hg=h*DEG;const shZ=z-back+T.y*Math.sin(hg)+T.z*Math.cos(hg);const dz=hz-shZ;if(dz*dz>R2)continue;
+    const shY=hy+Math.sqrt(R2-dz*dz);const drop=D.hips.y+T.y*Math.cos(hg)-T.z*Math.sin(hg)-shY;best={hinge:h,drop:Math.max(0,drop)};if(drop<=(o.maxDrop??.3))return best;}
+  return best||{hinge:o.hmax??78,drop:o.maxDrop??.3};}

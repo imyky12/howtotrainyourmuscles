@@ -51,7 +51,7 @@ function buildBarBench(g,deg,rollers){const lockS=lieShoulderAt(deg);const rackY
 function seatMachine(g){const P={};P.seat=box(.42,.09,.42,M.pad,0,SEAT_TOP-.045,SEAT_Z+.08,g);P.seatBase=P.seat.position.y;
   box(.07,SEAT_TOP-.09,.07,M.steel,0,(SEAT_TOP-.09)/2,SEAT_Z+.08,g);
   const back=box(.44,.78,.09,M.pad,0,SEAT_TOP+.47,SEAT_Z-.24,g);back.rotation.x=-SEAT_RECLINE;
-  box(.9,.06,.9,M.black,0,.03,SEAT_Z-.2,g);box(.07,1.9,.07,M.black,0,.95,SEAT_Z-.42,g);
+  box(.9,.025,.9,M.black,0,.0125,SEAT_Z-.2,g);box(.07,1.9,.07,M.black,0,.95,SEAT_Z-.42,g);
   P.stackTop=stack(g,0,.12,SEAT_Z-.62);box(.32,1.7,.06,M.black,0,.85,SEAT_Z-.7,g);return P;}
 function seatShoulderRef(){return V(0,SEAT_TOP+.1*D.s,SEAT_Z).add(D.sh.clone().sub(D.hips).applyQuaternion(qX(-SEAT_RECLINE)));}
 
@@ -69,6 +69,6 @@ function buildDBRack(x,z,len,rot){const g=new THREE.Group();g.position.set(x,0,z
 // fixed barbell / EZ-bar rack against a wall
 function buildBarRack(x,z,rot){const g=new THREE.Group();g.position.set(x,0,z);g.rotation.y=rot;IN.add(g);
   for(const s of[-1,1]){box(.06,1.3,.5,M.black,s*.8,.65,0,g);}
-  const bars=[];for(let i=0;i<3;i++){const y=.45+i*.32;box(1.66,.04,.04,M.steel,0,y,.12,g);}
+  for(let i=0;i<3;i++){const y=.45+i*.32;for(const s of[-1,1])box(.13,.04,.05,M.steel,s*.735,y,.12,g);} // hooks under the bar ends, so the hands grip the bar in the open middle
   const ez=ezBar();ez.position.set(0,1.11,.12);g.add(ez);const st=barbell(false,M.padRed,1.6);for(const s of[-1,1]){plate(st,s*.58,.14,.05,M.rubberPlate);}st.position.set(0,.79,.12);g.add(st);
   g.updateMatrixWorld(true);return {g,ez,straight:st,homeEz:ez.position.clone(),homeSt:st.position.clone()};}
