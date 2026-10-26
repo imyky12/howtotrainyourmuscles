@@ -11,7 +11,8 @@ function charMat(m){const n=m.name||'';if(!m.isMeshStandardMaterial)return;
     if('sheen' in m){m.sheen=.35;m.sheenRoughness=.55;m.sheenColor.setRGB(.62,.26,.17);}
     m.color.multiply(new THREE.Color(1.03,.985,.95));}
   else if(/^Hair/.test(n)){ // alpha-tested cards: sorted with the body, no see-through halo, slight sheen along the strands
-    m.transparent=false;m.alphaTest=.42;m.depthWrite=true;m.roughness=.48;if('sheen' in m){m.sheen=.4;m.sheenRoughness=.4;m.sheenColor.setRGB(.35,.28,.22);}}
+    m.transparent=false;m.alphaTest=.42;m.depthWrite=true;m.roughness=.62;m.color.multiply(new THREE.Color(.42,.38,.35)); // the texture reads grey-white under the gym lights: darken to a natural dark brown
+    if('sheen' in m){m.sheen=.18;m.sheenRoughness=.5;m.sheenColor.setRGB(.25,.2,.16);}}
   else if(/^Eyes/.test(n)){m.roughness=.15;if('specularIntensity' in m)m.specularIntensity=1;m.envMapIntensity=1.5;} // wet eyes: the room's lights show as catchlights
   else if(/^Eye(brows|lashes)/.test(n)){m.depthWrite=false;}
   else if(/shoe/i.test(n)){m.roughness=.62;}

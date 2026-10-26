@@ -43,8 +43,8 @@ function showHUD(on){$('#hud').hidden=!on;$('#planBtn').hidden=!SES.group;if(!on
 function nextInPlan(){if(!SES.plan)return null;const items=SES.plan.items.map(i=>i[0]);const i=items.indexOf(EXK);return i>=0&&i<items.length-1?items[i+1]:null;}
 function renderExerciseUI(){const e=EX;const items=SES.plan?SES.plan.items.map(i=>i[0]):[];const i=items.indexOf(e.key);
   $('#exEyebrow').textContent=(i>=0?`${i+1} of ${items.length} · `:'')+e.eq;$('#exTitle').textContent=e.name;$('#exQuip').textContent=e.quip||'';$('#exPart').textContent=e.part;
-  $('#steps').innerHTML=e.steps.map((s,j)=>`<button data-i="${j}"><b>${j+1} · ${s[0]}</b><span>${s[1]}</span></button>`).join('');
-  const nx=nextInPlan();$('#nextBtn').textContent=nx?'Next: '+EXS[nx].name.toLowerCase()+' →':i>=0?'Finish the workout ✓':'Back to the plan';
+  $('#steps').innerHTML=e.steps.map((s,j)=>`<button data-i="${j}" aria-label="Step ${j+1}: ${s[0]}"><b><i>${j+1}</i><em> · ${s[0]}</em></b><span>${s[1]}</span></button>`).join('');
+  const nx=nextInPlan();$('#nextBtn').innerHTML='<span>'+(nx?'Next<span class="nxn">: '+EXS[nx].name.toLowerCase()+'</span> →':i>=0?'Finish<span class="nxn"> the workout</span> ✓':'<span class="nxn">Back to the </span>Plan')+'</span>';
   setTool('tPause',paused);setTool('tSlow',speed<1);setTool('tMistake',false);setTool('tLearn',false);}
 function setTool(id,on){$('#'+id).setAttribute('aria-pressed',!!on);}
 $('#nextBtn').addEventListener('click',()=>{if(flow!=='exercise')return;const nx=nextInPlan();

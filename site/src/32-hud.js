@@ -66,11 +66,12 @@ function updateLabels(){updateSplitUI();if(flow!=='exercise'||(learn&&learn.mode
     lines.innerHTML=`<line x1="${a.x}" y1="${a.y}" x2="${x}" y2="${y}"/><circle cx="${a.x}" cy="${a.y}" r="3.5"/>`;return;}
   $('#lbWarn').style.display='none';
   const offs=[[-150,-80],[70,-90],[80,40]];
-  EX.labels.forEach(([txt,reg,role],i)=>{const el=$('#lb'+i);const p=regionWorld(hero,RID[reg]);if(!p){el.style.display='none';return;}const a=anchorScreen(p);if(!a.ok){el.style.display='none';return;}
+  const phone=innerWidth<760,labs=phone?EX.labels.slice(0,1):EX.labels; // phones: only the main muscle is labelled
+  labs.forEach(([txt,reg,role],i)=>{const el=$('#lb'+i);const p=regionWorld(hero,RID[reg]);if(!p){el.style.display='none';return;}const a=anchorScreen(p);if(!a.ok){el.style.display='none';return;}
     el.innerHTML=`<i style="background:${role==='m'?'var(--main)':'var(--help)'}"></i>${txt}<small>${role==='m'?'main muscle':'helping'}</small>`;
-    el.style.display='flex';const wd=el.offsetWidth;let x=a.x+offs[i][0]*sm;const left=offs[i][0]<0;x=left?clamp(x,wd+8,innerWidth-8):clamp(x,8,innerWidth-wd-8);const y=clamp(a.y+offs[i][1]*sm,70,innerHeight-60);el.style.transform=`translate(${x}px,${y}px) translate(${left?'-100%':'0'},-50%)`;
+    el.style.display='flex';const wd=el.offsetWidth;let x=a.x+offs[i][0]*sm;const left=offs[i][0]<0;x=left?clamp(x,wd+8,innerWidth-8):clamp(x,8,innerWidth-wd-8);const y=clamp(a.y+offs[i][1]*sm,phone?110:70,innerHeight-(phone?170:60));el.style.transform=`translate(${x}px,${y}px) translate(${left?'-100%':'0'},-50%)`;
     svg+=`<line x1="${a.x}" y1="${a.y}" x2="${x}" y2="${y}"/><circle cx="${a.x}" cy="${a.y}" r="3.5"/>`;});
-  for(let i=EX.labels.length;i<3;i++)$('#lb'+i).style.display='none';
+  for(let i=labs.length;i<3;i++)$('#lb'+i).style.display='none';
   lines.innerHTML=svg;}
 // ---- learn mode: guided steps, then a spot-the-mistake quiz
 let learn=null;const learnEl=$('#learn');

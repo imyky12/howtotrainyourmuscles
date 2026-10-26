@@ -1,0 +1,22 @@
+// every UI state at one viewport (test mode)
+const { chromium } = require('playwright');
+const W=+(process.env.W||390),H=+(process.env.H||844),pre=process.env.PRE||'mob';
+(async () => {const b = await chromium.launch({ args: ['--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader','--ignore-gpu-blocklist'] });
+  const p = await b.newPage({ viewport: { width: W, height: H }, deviceScaleFactor:1, isMobile:W<800, hasTouch:W<800 });p.on('pageerror', e => console.log('PAGEERR', e.message));
+  await p.goto('http://localhost:8767/index.html?test');await p.waitForFunction(() => window.__ready, null, { timeout: 120000 });
+  const snap=async n=>{await p.evaluate(()=>__advance(1/30));await p.waitForTimeout(250);await p.screenshot({path:`out/${pre}-${n}.png`});};
+  const adv=s=>p.evaluate(s=>__advance(s),s);
+  await adv(.1);await snap('01-landing');
+  await p.evaluate(()=>{__api.start();});await adv(1.2);await snap('02-street');
+  await p.evaluate(()=>__api.skipIntro());for(let i=0;i<14&&await p.evaluate(()=>__api.flow)!=='ask';i++)await adv(1);await adv(3.5);await snap('03-ask');
+  await p.evaluate(()=>__api.chooseGroup('chest'));await adv(1);await snap('04-plan');
+  await p.click('#planGo');await adv(3);await snap('05-walking');
+  for(let i=0;i<60&&await p.evaluate(()=>__api.flow)!=='exercise';i++)await adv(1);await adv(2);await snap('06-exercise');
+  await p.evaluate(()=>document.querySelector('#tMistake').click());await adv(1);await snap('07-mistakes');
+  await p.evaluate(()=>document.querySelector('.mlist button').click());await adv(2);await snap('08-split');
+  await p.evaluate(()=>document.querySelector('#tMistake').click());await adv(.5);
+  await p.evaluate(()=>document.querySelector('#tLearn').click());await adv(1);await snap('09-learn');
+  await p.evaluate(()=>__api.learnClick('[data-a="next"]'));await p.evaluate(()=>__api.learnClick('[data-a="next"]'));await p.evaluate(()=>__api.learnClick('[data-a="next"]'));await p.evaluate(()=>__api.learnClick('[data-a="next"]'));await adv(2);await snap('10-quiz');
+  await p.evaluate(()=>document.querySelector('#tLearn').click());await adv(.5);
+  await p.evaluate(()=>document.querySelector('#planBtn')&&document.querySelector('#planBtn').click());await adv(.5);await snap('11-plan-open');
+  await b.close();})();

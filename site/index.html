@@ -1,4 +1,5 @@
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Muscle House</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;800;900&family=Figtree:wght@400;500;600;700&display=swap">
@@ -19,6 +20,7 @@
   color-scheme:dark;
 }
 [hidden]{display:none!important}
+body:has(#plan:not([hidden])) #bubble{display:none!important} /* the plan sheet replaces the coach's remark */
 html,body{height:100%}
 body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 var(--body);overflow:hidden;user-select:none;-webkit-user-select:none}
 canvas#gl{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none}
@@ -114,7 +116,7 @@ button:focus-visible{outline:2px solid var(--help);outline-offset:2px}
 #dock{position:absolute;left:max(16px,env(safe-area-inset-left,0px));bottom:calc(18px + env(safe-area-inset-bottom,0px));right:calc(230px + env(safe-area-inset-right,0px));max-width:760px;display:grid;gap:10px;pointer-events:none}
 #steps{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;padding:5px;pointer-events:auto}
 #steps button{text-align:left;padding:8px 10px;border-radius:10px;display:grid;gap:1px;font:500 .76rem var(--body);color:var(--muted)}
-#steps button b{color:var(--ink);font:700 .9rem var(--body)}
+#steps button b{color:var(--ink);font:700 .9rem var(--body)}#steps b i,#steps b em{font-style:normal}
 #steps button.on{background:var(--ink);color:#4a5258}#steps button.on b{color:#121417}
 #sub{text-align:center;font:600 1.05rem var(--body);text-shadow:0 2px 12px rgba(0,0,0,.95);pointer-events:none}
 #sub b{color:var(--help)}
@@ -154,22 +156,44 @@ button:focus-visible{outline:2px solid var(--help);outline-offset:2px}
 #done{position:fixed;z-index:26;left:50%;top:50%;transform:translate(-50%,-50%);width:min(440px,calc(100vw - 32px));padding:22px;display:grid;gap:12px;text-align:left}
 #done h2{margin:0;font:900 2.4rem/.9 var(--display);text-transform:uppercase}
 @media (max-width:760px){
-  #exCard{padding:10px 12px;top:calc(54px + env(safe-area-inset-top,0px));width:auto;right:max(16px,env(safe-area-inset-right,0px))}
-  #exCard h2{font-size:1.45rem}#exQuip{display:none}
-  #tools{position:static;display:grid;grid-template-columns:repeat(4,1fr);border-radius:14px;pointer-events:auto}
-  #tools button{flex-direction:column;gap:2px;padding:6px 2px;font-size:.68rem;text-align:center;justify-content:center;border-radius:10px}
-  #dock{right:max(16px,env(safe-area-inset-right,0px));bottom:calc(64px + env(safe-area-inset-bottom,0px));gap:6px}
-  #steps{padding:3px}
-  #steps button{padding:5px 6px;font-size:.62rem}#steps button b{font-size:.74rem}
-  #nextBtn{left:max(16px,env(safe-area-inset-left,0px));justify-content:center;bottom:calc(10px + env(safe-area-inset-bottom,0px))}
-  #sub{font-size:.9rem}
-  .side{left:max(16px,env(safe-area-inset-left,0px));right:max(16px,env(safe-area-inset-right,0px));width:auto;top:auto;bottom:calc(10px + env(safe-area-inset-bottom,0px));max-height:52%}
-  #plan{top:auto;bottom:calc(10px + env(safe-area-inset-bottom,0px));max-height:58%;width:auto;right:max(16px,env(safe-area-inset-right,0px))}
-  #bubble.ask{top:auto!important;bottom:calc(10px + env(safe-area-inset-bottom,0px));right:max(16px,env(safe-area-inset-right,0px));width:auto}
-  #plan h2{font-size:1.6rem}
+  /* exercise: one-line title bar */
+  #exCard{top:calc(52px + env(safe-area-inset-top,0px));right:max(16px,env(safe-area-inset-right,0px));width:auto;padding:8px 12px;display:flex;align-items:center;gap:10px;border-radius:12px}
+  #exEyebrow,#exQuip,#exPart{display:none}
+  #exCard h2{font-size:1.1rem;line-height:1.1;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #exMeta{margin:0;flex:none}#rep{font-size:.72rem}
+  /* bottom: the current step on one line, then four icon tools and a short Next */
+  #dock{right:max(16px,env(safe-area-inset-right,0px));bottom:calc(10px + env(safe-area-inset-bottom,0px));gap:6px}
+  #sub{display:none}
+  #steps{order:1}#tools{order:2}
+  #steps{display:flex;gap:4px;padding:4px;border-radius:12px}
+  #steps button{flex:0 0 32px;height:36px;padding:0;display:grid;place-items:center;border-radius:9px}
+  #steps button b{font-size:.85rem}#steps button em,#steps button span{display:none}
+  #steps button.on{flex:1 1 auto;min-width:0;place-items:center start;padding:0 10px}
+  #steps button.on em{display:inline}#steps button.on b{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+  #tools{position:static;display:grid;grid-template-columns:repeat(4,1fr);width:calc(100% - 96px);border-radius:12px;padding:3px;gap:2px;pointer-events:auto}
+  #tools button{flex-direction:column;gap:1px;padding:5px 2px;font-size:.64rem;text-align:center;justify-content:center;border-radius:9px;min-height:40px}
+  #nextBtn{position:absolute;right:max(16px,env(safe-area-inset-right,0px));bottom:calc(10px + env(safe-area-inset-bottom,0px));height:46px;width:88px;padding:0 10px;justify-content:center;font-size:.9rem}
+  .nxn{display:none}
+  .ml{font-size:.72rem;padding:4px 8px}.ml small{display:none}
+  .stag{font-size:.74rem;padding:5px 9px}.stag small{font-size:.68rem}
+  /* panels are bottom sheets that leave room for the scene */
+  .side{left:0;right:0;width:auto;top:auto;bottom:0;max-height:46%;border-radius:18px 18px 0 0;padding:14px max(16px,env(safe-area-inset-right,0px)) calc(14px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));gap:10px}
+  .side>.eyebrow{display:none}.side h3{font-size:1.2rem}
+  .mlist{display:flex;overflow-x:auto;gap:6px;scrollbar-width:none;margin:0 -2px}
+  .mlist button{flex:0 0 auto;max-width:70%;padding:9px 12px}.mlist button span{display:none}
+  .mi p{font-size:.86rem}
+  #plan{left:0;right:0;width:auto;top:auto;bottom:0;max-height:78%;border-radius:18px 18px 0 0;padding:16px max(16px,env(safe-area-inset-right,0px)) calc(16px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));gap:12px}
+  #plan h2{font-size:1.5rem}
+  #plan{grid-template-columns:minmax(0,1fr)}#plan .tabs{width:auto}
+  #plan .why{font-size:.84rem;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+  #planList button{grid-template-columns:24px 1fr;padding:9px 10px}
+  #planList .sets{grid-column:2;grid-row:3;justify-self:start;color:var(--muted)}
+  #bubble.ask{left:0!important;right:0;width:auto;top:auto!important;bottom:0;border-radius:18px 18px 0 0;padding:16px max(16px,env(safe-area-inset-right,0px)) calc(16px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
+  body:has(#hud:not([hidden])) #bubble{display:none!important}
   #cap{bottom:auto;top:calc(60px + env(safe-area-inset-top,0px))}
   .brand{font-size:1rem}
 }
+
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 

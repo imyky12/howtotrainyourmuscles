@@ -33,7 +33,10 @@ function update(dtReal){const dt0=paused&&flow==='exercise'?0:dtReal;const dt=fl
     if(ft>1.2&&!coach._called){coach._called=1;goTo(coach,MEET,{face:Math.atan2(INSIDE.x-MEET.x,INSIDE.z-MEET.z),done:()=>{setFlow('ask');}});}
     turnTo(hero,Math.atan2(coach.pos.x-hero.pos.x,coach.pos.z-hero.pos.z),dt,2);}
   else if(flow==='ask'){turnTo(hero,Math.atan2(coach.pos.x-hero.pos.x,coach.pos.z-hero.pos.z),dt,3);turnTo(coach,Math.atan2(hero.pos.x-coach.pos.x,hero.pos.z-coach.pos.z),dt,3);
-    const mid=V().addVectors(hero.pos,coach.pos).multiplyScalar(.5);cam.tPos.set(mid.x-2.4,1.75,mid.z+1.9);cam.tLook.set(mid.x+.15,1.45,mid.z);
+    const mid=V().addVectors(hero.pos,coach.pos).multiplyScalar(.5);const port=innerWidth<innerHeight; // tall screens: pull back and aim low so both people sit above the choice card
+    if(port){const d=V(coach.pos.x-hero.pos.x,0,coach.pos.z-hero.pos.z).normalize();let n=V(-d.z,0,d.x);if(n.x<0)n.negate(); // a three-quarter two-shot from the open side of the room
+      cam.tPos.set(mid.x+n.x*3.3-d.x*1.3,2.1,mid.z+n.z*3.3-d.z*1.3);cam.tLook.set(mid.x,.55,mid.z);}
+    else{cam.tPos.set(mid.x-2.4,1.75,mid.z+1.9);cam.tLook.set(mid.x+.15,1.45,mid.z);}
     if(ft>.4&&!SES.asked){$('#skip').hidden=true;SES.asked=1;chipsEl.hidden=false;say(SES.group?'Round two? Which muscle now?':'Evening! Gym’s all ours. What are we training today?');}}
   else if(flow==='plan'){const a=ft*.06;cam.tPos.set(Math.sin(a)*1.2+1.5,4.0,-1.4);cam.tLook.set(0,.4,-12.5);}
   else if(flow==='walking'){if(hero.act_.kind==='walk'||hero.act_.kind==='turn')followCam(hero,3.4,2.9,.6);

@@ -156,7 +156,8 @@ function charMat(m){const n=m.name||'';if(!m.isMeshStandardMaterial)return;
     if('sheen' in m){m.sheen=.35;m.sheenRoughness=.55;m.sheenColor.setRGB(.62,.26,.17);}
     m.color.multiply(new THREE.Color(1.03,.985,.95));}
   else if(/^Hair/.test(n)){ // alpha-tested cards: sorted with the body, no see-through halo, slight sheen along the strands
-    m.transparent=false;m.alphaTest=.42;m.depthWrite=true;m.roughness=.48;if('sheen' in m){m.sheen=.4;m.sheenRoughness=.4;m.sheenColor.setRGB(.35,.28,.22);}}
+    m.transparent=false;m.alphaTest=.42;m.depthWrite=true;m.roughness=.62;m.color.multiply(new THREE.Color(.42,.38,.35)); // the texture reads grey-white under the gym lights: darken to a natural dark brown
+    if('sheen' in m){m.sheen=.18;m.sheenRoughness=.5;m.sheenColor.setRGB(.25,.2,.16);}}
   else if(/^Eyes/.test(n)){m.roughness=.15;if('specularIntensity' in m)m.specularIntensity=1;m.envMapIntensity=1.5;} // wet eyes: the room's lights show as catchlights
   else if(/^Eye(brows|lashes)/.test(n)){m.depthWrite=false;}
   else if(/shoe/i.test(n)){m.roughness=.62;}
@@ -3414,8 +3415,8 @@ function showHUD(on){$('#hud').hidden=!on;$('#planBtn').hidden=!SES.group;if(!on
 function nextInPlan(){if(!SES.plan)return null;const items=SES.plan.items.map(i=>i[0]);const i=items.indexOf(EXK);return i>=0&&i<items.length-1?items[i+1]:null;}
 function renderExerciseUI(){const e=EX;const items=SES.plan?SES.plan.items.map(i=>i[0]):[];const i=items.indexOf(e.key);
   $('#exEyebrow').textContent=(i>=0?`${i+1} of ${items.length} · `:'')+e.eq;$('#exTitle').textContent=e.name;$('#exQuip').textContent=e.quip||'';$('#exPart').textContent=e.part;
-  $('#steps').innerHTML=e.steps.map((s,j)=>`<button data-i="${j}"><b>${j+1} · ${s[0]}</b><span>${s[1]}</span></button>`).join('');
-  const nx=nextInPlan();$('#nextBtn').textContent=nx?'Next: '+EXS[nx].name.toLowerCase()+' →':i>=0?'Finish the workout ✓':'Back to the plan';
+  $('#steps').innerHTML=e.steps.map((s,j)=>`<button data-i="${j}" aria-label="Step ${j+1}: ${s[0]}"><b><i>${j+1}</i><em> · ${s[0]}</em></b><span>${s[1]}</span></button>`).join('');
+  const nx=nextInPlan();$('#nextBtn').innerHTML='<span>'+(nx?'Next<span class="nxn">: '+EXS[nx].name.toLowerCase()+'</span> →':i>=0?'Finish<span class="nxn"> the workout</span> ✓':'<span class="nxn">Back to the </span>Plan')+'</span>';
   setTool('tPause',paused);setTool('tSlow',speed<1);setTool('tMistake',false);setTool('tLearn',false);}
 function setTool(id,on){$('#'+id).setAttribute('aria-pressed',!!on);}
 $('#nextBtn').addEventListener('click',()=>{if(flow!=='exercise')return;const nx=nextInPlan();
@@ -3556,11 +3557,12 @@ function updateLabels(){updateSplitUI();if(flow!=='exercise'||(learn&&learn.mode
     lines.innerHTML=`<line x1="${a.x}" y1="${a.y}" x2="${x}" y2="${y}"/><circle cx="${a.x}" cy="${a.y}" r="3.5"/>`;return;}
   $('#lbWarn').style.display='none';
   const offs=[[-150,-80],[70,-90],[80,40]];
-  EX.labels.forEach(([txt,reg,role],i)=>{const el=$('#lb'+i);const p=regionWorld(hero,RID[reg]);if(!p){el.style.display='none';return;}const a=anchorScreen(p);if(!a.ok){el.style.display='none';return;}
+  const phone=innerWidth<760,labs=phone?EX.labels.slice(0,1):EX.labels; // phones: only the main muscle is labelled
+  labs.forEach(([txt,reg,role],i)=>{const el=$('#lb'+i);const p=regionWorld(hero,RID[reg]);if(!p){el.style.display='none';return;}const a=anchorScreen(p);if(!a.ok){el.style.display='none';return;}
     el.innerHTML=`<i style="background:${role==='m'?'var(--main)':'var(--help)'}"></i>${txt}<small>${role==='m'?'main muscle':'helping'}</small>`;
-    el.style.display='flex';const wd=el.offsetWidth;let x=a.x+offs[i][0]*sm;const left=offs[i][0]<0;x=left?clamp(x,wd+8,innerWidth-8):clamp(x,8,innerWidth-wd-8);const y=clamp(a.y+offs[i][1]*sm,70,innerHeight-60);el.style.transform=`translate(${x}px,${y}px) translate(${left?'-100%':'0'},-50%)`;
+    el.style.display='flex';const wd=el.offsetWidth;let x=a.x+offs[i][0]*sm;const left=offs[i][0]<0;x=left?clamp(x,wd+8,innerWidth-8):clamp(x,8,innerWidth-wd-8);const y=clamp(a.y+offs[i][1]*sm,phone?110:70,innerHeight-(phone?170:60));el.style.transform=`translate(${x}px,${y}px) translate(${left?'-100%':'0'},-50%)`;
     svg+=`<line x1="${a.x}" y1="${a.y}" x2="${x}" y2="${y}"/><circle cx="${a.x}" cy="${a.y}" r="3.5"/>`;});
-  for(let i=EX.labels.length;i<3;i++)$('#lb'+i).style.display='none';
+  for(let i=labs.length;i<3;i++)$('#lb'+i).style.display='none';
   lines.innerHTML=svg;}
 // ---- learn mode: guided steps, then a spot-the-mistake quiz
 let learn=null;const learnEl=$('#learn');
@@ -3626,7 +3628,10 @@ function update(dtReal){const dt0=paused&&flow==='exercise'?0:dtReal;const dt=fl
     if(ft>1.2&&!coach._called){coach._called=1;goTo(coach,MEET,{face:Math.atan2(INSIDE.x-MEET.x,INSIDE.z-MEET.z),done:()=>{setFlow('ask');}});}
     turnTo(hero,Math.atan2(coach.pos.x-hero.pos.x,coach.pos.z-hero.pos.z),dt,2);}
   else if(flow==='ask'){turnTo(hero,Math.atan2(coach.pos.x-hero.pos.x,coach.pos.z-hero.pos.z),dt,3);turnTo(coach,Math.atan2(hero.pos.x-coach.pos.x,hero.pos.z-coach.pos.z),dt,3);
-    const mid=V().addVectors(hero.pos,coach.pos).multiplyScalar(.5);cam.tPos.set(mid.x-2.4,1.75,mid.z+1.9);cam.tLook.set(mid.x+.15,1.45,mid.z);
+    const mid=V().addVectors(hero.pos,coach.pos).multiplyScalar(.5);const port=innerWidth<innerHeight; // tall screens: pull back and aim low so both people sit above the choice card
+    if(port){const d=V(coach.pos.x-hero.pos.x,0,coach.pos.z-hero.pos.z).normalize();let n=V(-d.z,0,d.x);if(n.x<0)n.negate(); // a three-quarter two-shot from the open side of the room
+      cam.tPos.set(mid.x+n.x*3.3-d.x*1.3,2.1,mid.z+n.z*3.3-d.z*1.3);cam.tLook.set(mid.x,.55,mid.z);}
+    else{cam.tPos.set(mid.x-2.4,1.75,mid.z+1.9);cam.tLook.set(mid.x+.15,1.45,mid.z);}
     if(ft>.4&&!SES.asked){$('#skip').hidden=true;SES.asked=1;chipsEl.hidden=false;say(SES.group?'Round two? Which muscle now?':'Evening! Gym’s all ours. What are we training today?');}}
   else if(flow==='plan'){const a=ft*.06;cam.tPos.set(Math.sin(a)*1.2+1.5,4.0,-1.4);cam.tLook.set(0,.4,-12.5);}
   else if(flow==='walking'){if(hero.act_.kind==='walk'||hero.act_.kind==='turn')followCam(hero,3.4,2.9,.6);
