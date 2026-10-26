@@ -1,0 +1,240 @@
+<meta charset="utf-8">
+<title>Muscle House</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;800;900&family=Figtree:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: a full-screen night gym in WebGL; the interface is a few chalk-white cards that appear only when needed.
+   Single dark look on purpose: the 3D world is a gym at night. */
+:root{
+  --ink:#f3f1ea;        /* chalk */
+  --muted:#a7adb3;
+  --glass:rgba(13,15,18,.72);
+  --line:rgba(243,241,234,.14);
+  --main:#ff3b2a;       /* main muscle, wrong form */
+  --help:#ffb21f;       /* helping muscle */
+  --ok:#2fd18a;         /* right form */
+  --bg:#07090b;
+  --display:"Big Shoulders Display","Arial Narrow",Impact,sans-serif;
+  --body:"Figtree",system-ui,-apple-system,"Segoe UI",sans-serif;
+  color-scheme:dark;
+}
+[hidden]{display:none!important}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 var(--body);overflow:hidden;user-select:none;-webkit-user-select:none}
+canvas#gl{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none}
+button{font:inherit;color:inherit;cursor:pointer;background:none;border:0}
+button:focus-visible{outline:2px solid var(--help);outline-offset:2px}
+.glass{background:var(--glass);border:1px solid var(--line);border-radius:16px;backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
+.btn{font:700 .95rem var(--body);background:var(--ink);color:#121417;border-radius:999px;padding:13px 22px;display:inline-flex;gap:10px;align-items:center;transition:transform .15s,opacity .2s}
+.btn:hover{transform:translateY(-1px)}.btn:disabled{opacity:.5;cursor:default;transform:none}
+.btn.ghost{background:transparent;color:var(--ink);border:1px solid var(--line)}
+.btn.sm{padding:9px 14px;font-size:.85rem}
+.eyebrow{font:600 .72rem var(--body);letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.fade{transition:opacity .45s,transform .45s}.fade.out{opacity:0;transform:translateY(8px);pointer-events:none}
+
+/* landing */
+#landing{position:fixed;inset:0;z-index:40;display:grid;align-items:end;
+  background:linear-gradient(180deg,rgba(7,9,11,0) 35%,rgba(7,9,11,.86) 78%),radial-gradient(ellipse at 70% 30%,rgba(255,59,42,.10),transparent 60%);
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:0 calc(28px + env(safe-area-inset-bottom,0px));transition:opacity .9s}
+#landing.out{opacity:0;pointer-events:none}
+.lcard{max-width:760px;display:grid;gap:18px;padding:0 clamp(0px,3vw,40px) clamp(8px,4vh,48px)}
+.lcard h1{margin:0;font:900 clamp(3.1rem,10.5vw,7.6rem)/.84 var(--display);text-transform:uppercase;letter-spacing:-.01em;text-wrap:balance}
+.lcard h1 em{font-style:normal;color:var(--main)}
+.lcard p{margin:0;max-width:52ch;color:#d5d8da;font-size:1.05rem}
+.lrow{display:flex;flex-wrap:wrap;gap:14px;align-items:center}
+.credit{font-size:.72rem;color:var(--muted);max-width:60ch}
+.kbd{font:600 .78rem var(--body);color:var(--muted)}
+
+/* top bar */
+#top{position:fixed;z-index:30;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;gap:10px;pointer-events:none;
+  padding:calc(12px + env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) 0 max(16px,env(safe-area-inset-left,0px))}
+#top>*{pointer-events:auto}
+.brand{font:800 1.15rem var(--display);letter-spacing:.06em;text-transform:uppercase}
+.brand span{color:var(--main)}
+.pill{font:600 .78rem var(--body);padding:8px 14px;border-radius:999px}
+
+/* captions */
+#cap{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(30px + env(safe-area-inset-bottom,0px));z-index:12;width:min(760px,calc(100% - 32px));
+  font:600 clamp(1rem,2.3vw,1.3rem) var(--body);text-align:center;text-shadow:0 2px 14px rgba(0,0,0,.85);transition:opacity .4s}
+
+/* coach bubble */
+#bubble{position:fixed;z-index:24;left:0;top:0;transform:translate(-50%,-100%);width:min(360px,calc(100vw - 32px));padding:14px 16px;display:none}
+#bubble .who{font:800 .9rem var(--display);letter-spacing:.08em;text-transform:uppercase;color:var(--help)}
+#say{margin:2px 0 0;font-size:1rem}
+#chips{display:grid;grid-template-columns:repeat(2,1fr);gap:6px;margin-top:12px}
+#chips button{font:600 .9rem var(--body);background:rgba(243,241,234,.07);border:1px solid var(--line);border-radius:12px;padding:10px 12px;text-align:left;display:grid;gap:0}
+#chips button small{font-weight:500;color:var(--muted);font-size:.74rem}
+#chips button:hover{border-color:rgba(243,241,234,.45)}
+
+/* plan sheet */
+#plan{position:fixed;z-index:25;left:max(16px,env(safe-area-inset-left,0px));top:calc(64px + env(safe-area-inset-top,0px));width:min(410px,calc(100vw - 32px));max-height:calc(100% - 84px - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px));overflow:auto;padding:18px;display:grid;gap:14px;align-content:start}
+#plan h2{margin:0;font:900 2.1rem/.92 var(--display);text-transform:uppercase;text-wrap:balance}
+#plan .why{margin:0;color:#cfd3d6;font-size:.9rem}
+#planList{list-style:none;margin:0;padding:0;display:grid;gap:6px;counter-reset:n}
+#planList button{width:100%;text-align:left;display:grid;grid-template-columns:28px 1fr auto;gap:2px 10px;align-items:center;border:1px solid var(--line);border-radius:12px;padding:10px 12px;background:rgba(243,241,234,.03)}
+#planList button:hover{border-color:rgba(243,241,234,.4)}
+#planList .n{grid-row:span 2;font:800 1.3rem var(--display);color:var(--muted);font-variant-numeric:tabular-nums}
+#planList b{font-weight:700}
+#planList .meta{grid-column:2/4;font-size:.8rem;color:var(--muted)}
+#planList .sets{font-size:.8rem;color:var(--ink);font-variant-numeric:tabular-nums;white-space:nowrap}
+#planList li.done button{opacity:.55}#planList li.now button{border-color:var(--ink);background:rgba(243,241,234,.08)}
+.parts{display:flex;flex-wrap:wrap;gap:6px}
+.part{font:600 .72rem var(--body);padding:4px 9px;border-radius:999px;background:rgba(47,209,138,.14);color:#9df0c8}
+.prow{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.tabs{display:flex;gap:4px;background:rgba(243,241,234,.06);border-radius:999px;padding:3px;width:max-content;max-width:100%;overflow-x:auto;scrollbar-width:none}
+.tabs button{white-space:nowrap}
+#plan>*{min-width:0}#planList li{min-width:0}#planList b{overflow-wrap:anywhere}
+#bubble.ask{position:fixed;left:max(16px,env(safe-area-inset-left,0px))!important;top:calc(64px + env(safe-area-inset-top,0px))!important;transform:none;width:min(400px,calc(100vw - 32px))}
+#bubble.ask:after{display:none}
+.tabs button{font:600 .8rem var(--body);padding:6px 12px;border-radius:999px;color:var(--muted)}
+.tabs button[aria-pressed="true"]{background:var(--ink);color:#121417}
+
+/* walking status */
+#walk{position:fixed;z-index:22;left:50%;transform:translateX(-50%);top:calc(60px + env(safe-area-inset-top,0px));display:flex;gap:10px;align-items:center;padding:8px 8px 8px 16px;border-radius:999px;white-space:nowrap;max-width:calc(100vw - 32px)}
+#walk span{font-weight:600;overflow:hidden;text-overflow:ellipsis}
+
+/* exercise HUD */
+#hud{position:fixed;inset:0;z-index:15;pointer-events:none}
+#hud>*{pointer-events:auto}
+#exCard{position:absolute;left:max(16px,env(safe-area-inset-left,0px));top:calc(60px + env(safe-area-inset-top,0px));padding:14px 16px;display:grid;gap:4px;width:min(330px,calc(100vw - 32px))}
+#exCard h2{margin:0;font:900 1.9rem/.95 var(--display);text-transform:uppercase;text-wrap:balance}
+#exQuip{margin:2px 0 0;font-size:.88rem;color:#cfd3d6}
+#exMeta{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:4px}
+#rep{font:600 .8rem var(--body);color:var(--muted);font-variant-numeric:tabular-nums}
+#tools{position:fixed;pointer-events:auto;right:max(16px,env(safe-area-inset-right,0px));top:calc(60px + env(safe-area-inset-top,0px));display:flex;gap:2px;padding:4px;border-radius:999px}
+#tools button{display:flex;gap:7px;align-items:center;padding:8px 13px;border-radius:999px;font:600 .82rem var(--body);white-space:nowrap}
+#tools button:hover{background:rgba(243,241,234,.08)}
+#tools button[aria-pressed="true"]{background:var(--ink);color:#121417}
+#tools i{font-style:normal;width:18px;text-align:center}
+#nextBtn{position:absolute;right:max(16px,env(safe-area-inset-right,0px));bottom:calc(18px + env(safe-area-inset-bottom,0px))}
+#dock{position:absolute;left:max(16px,env(safe-area-inset-left,0px));bottom:calc(18px + env(safe-area-inset-bottom,0px));right:calc(230px + env(safe-area-inset-right,0px));max-width:760px;display:grid;gap:10px;pointer-events:none}
+#steps{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;padding:5px;pointer-events:auto}
+#steps button{text-align:left;padding:8px 10px;border-radius:10px;display:grid;gap:1px;font:500 .76rem var(--body);color:var(--muted)}
+#steps button b{color:var(--ink);font:700 .9rem var(--body)}
+#steps button.on{background:var(--ink);color:#4a5258}#steps button.on b{color:#121417}
+#sub{text-align:center;font:600 1.05rem var(--body);text-shadow:0 2px 12px rgba(0,0,0,.95);pointer-events:none}
+#sub b{color:var(--help)}
+/* mistakes and learn cards share the right column */
+.side{position:absolute;right:max(16px,env(safe-area-inset-right,0px));top:calc(112px + env(safe-area-inset-top,0px));width:min(340px,calc(100vw - 32px));max-height:calc(100% - 200px);overflow:auto;padding:16px;display:grid;gap:12px;align-content:start}
+.side h3{margin:0;font:900 1.6rem/1 var(--display);text-transform:uppercase;text-wrap:balance}
+.side p{margin:0}
+.mlist{display:grid;gap:6px}
+.mlist button{text-align:left;border:1px solid var(--line);border-radius:12px;padding:10px 12px;display:grid;gap:2px;background:rgba(243,241,234,.03)}
+.mlist button b{font-weight:700}.mlist button span{font-size:.8rem;color:var(--muted)}
+.mlist button[aria-pressed="true"]{border-color:var(--main);background:rgba(255,59,42,.13)}
+.mlist button.good[aria-pressed="true"]{border-color:var(--ok);background:rgba(47,209,138,.12)}
+.mi{display:grid;gap:2px}.mi span{font:600 .68rem var(--body);letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}.mi p{font-size:.9rem}
+.mi.bad p{color:#ffb4ab}.mi.fix p{color:#9df0c8}
+.row{display:flex;flex-wrap:wrap;gap:6px}
+.tg{font:600 .8rem var(--body);border:1px solid var(--line);border-radius:999px;padding:7px 12px}
+.tg.on{background:var(--ink);color:#121417;border-color:var(--ink)}
+.dots{display:flex;gap:5px}.dots i{flex:1;height:4px;border-radius:2px;background:rgba(243,241,234,.15)}.dots i.on{background:var(--help)}
+.opts{display:grid;gap:6px}
+.opts button{text-align:left;font:600 .92rem var(--body);background:rgba(243,241,234,.05);border:1px solid var(--line);border-radius:12px;padding:10px 12px}
+.opts button.right{border-color:var(--ok);background:rgba(47,209,138,.16)}.opts button.wrong{border-color:var(--main);background:rgba(255,59,42,.16)}
+.verdict{padding:10px 12px;border-radius:12px;background:rgba(243,241,234,.05);display:grid;gap:4px;font-size:.9rem}
+/* split view */
+#split{position:fixed;inset:0;z-index:12;pointer-events:none}
+#splitDiv{position:absolute;background:rgba(243,241,234,.55)}
+.stag{position:absolute;padding:7px 12px;border-radius:12px;font:700 .86rem var(--body);color:#fff;max-width:44vw}
+.stag small{display:block;font:600 .76rem var(--body);opacity:.92;margin-top:1px}
+.stag.ok{background:#1b9a63}.stag.bad{background:var(--main)}
+/* muscle labels */
+#lines{position:fixed;inset:0;width:100%;height:100%;z-index:13;pointer-events:none}
+#lines line{stroke:rgba(243,241,234,.85);stroke-width:1.5}#lines circle{fill:#fff}
+.ml{position:fixed;left:0;top:0;z-index:13;display:none;align-items:center;gap:6px;padding:5px 10px;border-radius:9px;background:rgba(10,12,15,.8);border:1px solid var(--line);font:600 .8rem var(--body);white-space:nowrap;pointer-events:none}
+.ml i{width:9px;height:9px;border-radius:3px;display:inline-block}
+.ml small{font-weight:500;color:var(--muted)}
+.ml.bad{background:var(--main);border-color:var(--main);color:#fff}
+/* done */
+#done{position:fixed;z-index:26;left:50%;top:50%;transform:translate(-50%,-50%);width:min(440px,calc(100vw - 32px));padding:22px;display:grid;gap:12px;text-align:left}
+#done h2{margin:0;font:900 2.4rem/.9 var(--display);text-transform:uppercase}
+@media (max-width:760px){
+  #exCard{padding:10px 12px;top:calc(54px + env(safe-area-inset-top,0px));width:auto;right:max(16px,env(safe-area-inset-right,0px))}
+  #exCard h2{font-size:1.45rem}#exQuip{display:none}
+  #tools{position:static;display:grid;grid-template-columns:repeat(4,1fr);border-radius:14px;pointer-events:auto}
+  #tools button{flex-direction:column;gap:2px;padding:6px 2px;font-size:.68rem;text-align:center;justify-content:center;border-radius:10px}
+  #dock{right:max(16px,env(safe-area-inset-right,0px));bottom:calc(64px + env(safe-area-inset-bottom,0px));gap:6px}
+  #steps{padding:3px}
+  #steps button{padding:5px 6px;font-size:.62rem}#steps button b{font-size:.74rem}
+  #nextBtn{left:max(16px,env(safe-area-inset-left,0px));justify-content:center;bottom:calc(10px + env(safe-area-inset-bottom,0px))}
+  #sub{font-size:.9rem}
+  .side{left:max(16px,env(safe-area-inset-left,0px));right:max(16px,env(safe-area-inset-right,0px));width:auto;top:auto;bottom:calc(10px + env(safe-area-inset-bottom,0px));max-height:52%}
+  #plan{top:auto;bottom:calc(10px + env(safe-area-inset-bottom,0px));max-height:58%;width:auto;right:max(16px,env(safe-area-inset-right,0px))}
+  #bubble.ask{top:auto!important;bottom:calc(10px + env(safe-area-inset-bottom,0px));right:max(16px,env(safe-area-inset-right,0px));width:auto}
+  #plan h2{font-size:1.6rem}
+  #cap{bottom:auto;top:calc(60px + env(safe-area-inset-top,0px))}
+  .brand{font-size:1rem}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<canvas id="gl" aria-label="A 3D gym where a person trains"></canvas>
+
+<section id="landing" aria-label="Welcome">
+  <div class="lcard">
+    <span class="eyebrow">Muscle House · open 24/7 · no membership needed</span>
+    <h1>Your muscles called. <em>They want a plan.</em></h1>
+    <p>Walk into the gym, tell the coach what you’re training, and watch every exercise done the right way and the wrong way, with the working muscles lit up.</p>
+    <div class="lrow"><button class="btn" id="go" disabled>Warming up…</button><span class="kbd" id="loading">Loading the gym</span></div>
+    <p class="credit">7 muscle groups · 55 exercises · 140 common mistakes. People made with MakeHuman (CC0); 3D clothing by Elvaerwyn, Mindfront and punkduck (CC-BY 4.0).</p>
+  </div>
+</section>
+
+<header id="top">
+  <div class="brand">Muscle <span>House</span></div>
+  <div class="prow"><button class="pill glass" id="planBtn" hidden>Today’s plan</button><button class="pill glass" id="skip" hidden>Skip intro</button></div>
+</header>
+
+<div id="cap" aria-live="polite"></div>
+
+<div id="bubble" class="glass" aria-live="polite">
+  <div class="who">Coach Rana</div>
+  <p id="say"></p>
+  <div id="chips" hidden></div>
+</div>
+
+<aside id="plan" class="glass" hidden aria-label="Today's plan">
+  <div><span class="eyebrow" id="planEyebrow">Today</span><h2 id="planTitle"></h2></div>
+  <div class="tabs" id="planTabs" role="group" aria-label="Plan"></div>
+  <p class="why" id="planWhy"></p>
+  <div class="parts" id="planParts"></div>
+  <ol id="planList"></ol>
+  <div class="prow"><button class="btn" id="planGo"></button><button class="btn ghost sm" id="planSwap">Pick another muscle</button><button class="btn ghost sm" id="planClose" hidden>Close</button></div>
+</aside>
+
+<div id="walk" class="glass" hidden><span id="walkTxt"></span><button class="btn sm ghost" id="fast">Fast-forward ››</button></div>
+
+<div id="split" hidden><div id="splitDiv"></div><span class="stag ok" id="tagL"></span><span class="stag bad" id="tagR"></span></div>
+<svg id="lines" aria-hidden="true"></svg>
+<div class="ml" id="lb0"></div><div class="ml" id="lb1"></div><div class="ml" id="lb2"></div><div class="ml bad" id="lbWarn"></div>
+
+<div id="hud" hidden>
+  <div id="exCard" class="glass">
+    <span class="eyebrow" id="exEyebrow"></span>
+    <h2 id="exTitle"></h2>
+    <p id="exQuip"></p>
+    <div id="exMeta"><span class="part" id="exPart"></span><span id="rep"></span></div>
+  </div>
+  <div id="dock">
+  <div id="sub"></div>
+  <nav id="tools" class="glass" aria-label="Exercise tools">
+    <button id="tPause" aria-pressed="false"><i>❚❚</i>Pause</button>
+    <button id="tSlow" aria-pressed="false"><i>½</i>Slow-mo</button>
+    <button id="tMistake" aria-pressed="false"><i>✕</i>Mistakes</button>
+    <button id="tLearn" aria-pressed="false"><i>?</i>Learn</button>
+  </nav>
+  <div id="steps" class="glass"></div>
+  </div>
+  <button class="btn" id="nextBtn"></button>
+  <aside id="mist" class="side glass" hidden aria-live="polite"></aside>
+  <aside id="learn" class="side glass" hidden aria-live="polite"></aside>
+</div>
+
+<div id="done" class="glass" hidden></div>
+
+<script src="lifter.js"></script>
+<script src="coach.js"></script>
+<script src="member.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
+<script type="module" src="app.js"></script>
