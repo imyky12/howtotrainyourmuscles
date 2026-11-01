@@ -1605,7 +1605,11 @@ function poseDBRow(c,F,b,u,P){const uu=clamp(u,0,1);const lo=F.shortR?.13:0;cons
   legTo(c,'Left',V(.02,BENCH_TOP+.075,-11.28),V(0,-1,-.6));footTo(c,'Left',V(.02,BENCH_TOP+.02,-11.12));/* shin along the pad, foot off its end */
   legTo(c,'Right',V(.43,D.ankY,-11.52),V(.3,.2,-1));footTo(c,'Right',V(.45,.02,-11.68));
   armTo(c,'Left',V(.03,BENCH_TOP+.01,-12.43),{hd:V(0,0,-1),pn:V(0,-1,0),pole:V(-.4,.2,1),curl:.2});
-  const S=wpos(c.bones.RightArm);const hang=V(S.x+.02,S.y-ARM_HANG(),S.z+.02);const top=wpos(c.bones.Hips).add(V(.12,.16,-.12));
+  // the top: the dumbbell beside the waist (in line with the shoulder, about the torso's mid-thickness), the elbow driving up past
+  // the back toward the back pocket. (It used to end on top of the back, passing through the torso's side on the way.)
+  const Tb=torsoAxes(c);
+  const S=wpos(c.bones.RightArm);const hang=V(S.x+.02,S.y-ARM_HANG(),S.z+.02);
+  const top=wpos(c.bones.Hips).addScaledVector(Tb.L,-.265).addScaledVector(Tb.U,.1).addScaledVector(Tb.F,.03); // plates just clear of the side
   const flare=F.flare?V(S.x+.24,S.y-.08,S.z+.05):top;const end=F.flare?flare:top;
   const ct=hang.clone().lerp(end,k);const pole=F.flare?V(1,.6,0):V(.25,.4,1);
   armTo(c,'Right',ct,{hd:V(0,-1,0),pn:V(-1,0,0),pole});
