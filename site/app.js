@@ -3660,18 +3660,21 @@ let voiceOut=(()=>{try{return localStorage.getItem('muscleHouse.voice')!=='off';
 function speak(t){if(!voiceOut||!t||!window.speechSynthesis)return;try{speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(t);u.rate=1.04;
   const vs=speechSynthesis.getVoices();const v=vs.find(v=>/en[-_]IN/i.test(v.lang))||vs.find(v=>/en[-_]GB/i.test(v.lang));if(v)u.voice=v;speechSynthesis.speak(u);}catch(e){}}
 function listen(input,btn,done){if(!SR)return;if(btn._rec){btn._rec.stop();return;}const r=new SR();r.lang=navigator.language||'en-US';r.interimResults=true;
-  btn._rec=r;btn.classList.add('on');input.value='';input.placeholder='Listening…';
-  r.onresult=e=>{let t='';for(const x of e.results)t+=x[0].transcript;input.value=t;};
+  btn._rec=r;btn.classList.add('on');input.value='';input.dispatchEvent(new Event('input'));input.placeholder='Listening…';
+  r.onresult=e=>{let t='';for(const x of e.results)t+=x[0].transcript;input.value=t;input.dispatchEvent(new Event('input'));};
   r.onend=()=>{btn._rec=null;btn.classList.remove('on');input.placeholder=input.dataset.ph||'';if(input.value.trim())done(input.value.trim());};
   r.onerror=()=>{btn._rec=null;btn.classList.remove('on');input.placeholder=input.dataset.ph||'';};try{r.start();}catch(e){btn._rec=null;btn.classList.remove('on');}}
 
 // ---- 1. a plan from one sentence (the "what are we training?" question)
-async function planFromText(text){if(AI.busy||!text)return;AI.busy=true;$('#aiGo').disabled=true;say('Give me a second…');
+// "Plan it" only works once there is something to plan from (typed or said), and not while a plan is on its way
+function syncPlanBtn(){$('#aiGo').disabled=AI.busy||!$('#aiIn').value.trim();}
+$('#aiIn').addEventListener('input',syncPlanBtn);
+async function planFromText(text){if(AI.busy||!text)return;AI.busy=true;syncPlanBtn();say('Give me a second…');
   try{const res=await aiPost('/api/plan',{text,memory:memSummary(),...aiCatalog()});
     if(res.remember)memNote(res.remember,{area:res.pain_area});
     useAIPlan(res);speak(res.say);}
   catch(e){console.warn('[coach]',e);say('I couldn’t reach my notes just now. Pick a muscle below and we’ll go.');}
-  finally{AI.busy=false;$('#aiGo').disabled=false;}}
+  finally{AI.busy=false;syncPlanBtn();}}
 // the plan goes in as the group's first tab ("For you"), next to the standard plans
 function useAIPlan(res){const base=GROUPS[res.group];if(!base)return;
   const plan={name:res.name||'For you',who:'Made for you · about '+(res.minutes||45)+' min',why:[res.say,res.why].filter(Boolean).join(' '),items:res.items.map(i=>[i.ex,i.sets,i.rest]),ai:speedTag(res.t)};
@@ -3879,8 +3882,19 @@ function streetFrame(){if(!STREET){const g=new THREE.Group();scene.add(g);g.upda
 let swing=null; // camera arc from the landing view (in front of the hero) round to behind them
 function startStory(){$('#landing').classList.add('out');$('#skip').hidden=false;setFlow('street');
   const d=V().subVectors(cam.pos,hero.pos);swing={a0:Math.atan2(d.x,d.z),r:Math.hypot(d.x,d.z),y:cam.pos.y,t:0};
-  // turn round on the spot to face the door, then walk in
-  runSeq(hero,streetFrame(),[...turnSteps(hero.pos.x,hero.pos.z,hero.heading,Math.PI),{call:c=>{c.heading=Math.PI;}}],()=>goTo(hero,INSIDE,{face:Math.PI,speed:WALK_SPEED*1.04,land:1}));}
+  // turn round the way people do when they head off the other way: walk a tight half circle toward the door, on the
+  // motion-captured walk the whole time (a turn on the spot read as robotic); if the curve is blocked, turn on the spot as before
+  const o={face:Math.PI,speed:WALK_SPEED*1.04,land:1};
+  if(!arcWalk(hero,INSIDE,o))runSeq(hero,streetFrame(),[...turnSteps(hero.pos.x,hero.pos.z,hero.heading,Math.PI),{call:c=>{c.heading=Math.PI;}}],()=>goTo(hero,INSIDE,o));}
+// walk to target starting with a half circle of radius r that turns the walker round, curving toward the target's side
+function arcWalk(c,target,o,r=.6){const f=V(Math.sin(c.heading),0,Math.cos(c.heading)),left=V(f.z,0,-f.x);
+  const to=V(target.x-c.pos.x,0,target.z-c.pos.z).normalize();if(f.dot(to)>Math.cos(100*DEG))return goTo(c,target,o); // not behind: just walk there
+  const sign=V().subVectors(target,c.pos).dot(left)>=0?1:-1,s=left.multiplyScalar(sign*r),p0=c.pos.clone().setY(0),ctr=p0.clone().add(s);
+  const arc=[];for(let i=0;i<=12;i++){const t=i/12;arc.push(ctr.clone().addScaledVector(s,-Math.cos(Math.PI*t)).addScaledVector(f,r*Math.sin(Math.PI*t)));}
+  if(!arc.every(p=>navFree(p.x,p.z)))return false;const end=arc[arc.length-1];
+  const rest=findPath(end,target,others(c));if(!rest)return false;if(rest[0].distanceTo(end)<.05)rest.shift();
+  const P=[...arc,...rest];if(c.act_&&c.act_.kind==='seq')endSeq(c);
+  c.act_={kind:'walk',P,L:pathLen(P),s:0,v:0,face:o.face,done:o.done,speed:o.speed||WALK_SPEED,ph:0,land:o.land};return true;}
 function skipIntro(){if(flow!=='street'&&flow!=='greet')return;$('#skip').hidden=true;lightsOn=1;caption('');hero.pos.copy(INSIDE);hero.heading=Math.PI;place(hero);hero.act_={kind:'idle'};play(hero,'idle',0);
   coach.pos.copy(MEET);coach.heading=Math.atan2(INSIDE.x-MEET.x,INSIDE.z-MEET.z);place(coach);coach.act_={kind:'idle'};play(coach,'idle',0);coach._called=1;cam.pos.set(INSIDE.x-2.4,1.75,INSIDE.z+1.6);setFlow('ask');}
 $('#go').addEventListener('click',startStory);$('#skip').addEventListener('click',skipIntro);

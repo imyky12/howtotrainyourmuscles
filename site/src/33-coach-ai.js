@@ -46,18 +46,21 @@ let voiceOut=(()=>{try{return localStorage.getItem('muscleHouse.voice')!=='off';
 function speak(t){if(!voiceOut||!t||!window.speechSynthesis)return;try{speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(t);u.rate=1.04;
   const vs=speechSynthesis.getVoices();const v=vs.find(v=>/en[-_]IN/i.test(v.lang))||vs.find(v=>/en[-_]GB/i.test(v.lang));if(v)u.voice=v;speechSynthesis.speak(u);}catch(e){}}
 function listen(input,btn,done){if(!SR)return;if(btn._rec){btn._rec.stop();return;}const r=new SR();r.lang=navigator.language||'en-US';r.interimResults=true;
-  btn._rec=r;btn.classList.add('on');input.value='';input.placeholder='Listening…';
-  r.onresult=e=>{let t='';for(const x of e.results)t+=x[0].transcript;input.value=t;};
+  btn._rec=r;btn.classList.add('on');input.value='';input.dispatchEvent(new Event('input'));input.placeholder='Listening…';
+  r.onresult=e=>{let t='';for(const x of e.results)t+=x[0].transcript;input.value=t;input.dispatchEvent(new Event('input'));};
   r.onend=()=>{btn._rec=null;btn.classList.remove('on');input.placeholder=input.dataset.ph||'';if(input.value.trim())done(input.value.trim());};
   r.onerror=()=>{btn._rec=null;btn.classList.remove('on');input.placeholder=input.dataset.ph||'';};try{r.start();}catch(e){btn._rec=null;btn.classList.remove('on');}}
 
 // ---- 1. a plan from one sentence (the "what are we training?" question)
-async function planFromText(text){if(AI.busy||!text)return;AI.busy=true;$('#aiGo').disabled=true;say('Give me a second…');
+// "Plan it" only works once there is something to plan from (typed or said), and not while a plan is on its way
+function syncPlanBtn(){$('#aiGo').disabled=AI.busy||!$('#aiIn').value.trim();}
+$('#aiIn').addEventListener('input',syncPlanBtn);
+async function planFromText(text){if(AI.busy||!text)return;AI.busy=true;syncPlanBtn();say('Give me a second…');
   try{const res=await aiPost('/api/plan',{text,memory:memSummary(),...aiCatalog()});
     if(res.remember)memNote(res.remember,{area:res.pain_area});
     useAIPlan(res);speak(res.say);}
   catch(e){console.warn('[coach]',e);say('I couldn’t reach my notes just now. Pick a muscle below and we’ll go.');}
-  finally{AI.busy=false;$('#aiGo').disabled=false;}}
+  finally{AI.busy=false;syncPlanBtn();}}
 // the plan goes in as the group's first tab ("For you"), next to the standard plans
 function useAIPlan(res){const base=GROUPS[res.group];if(!base)return;
   const plan={name:res.name||'For you',who:'Made for you · about '+(res.minutes||45)+' min',why:[res.say,res.why].filter(Boolean).join(' '),items:res.items.map(i=>[i.ex,i.sets,i.rest]),ai:speedTag(res.t)};

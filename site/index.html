@@ -164,7 +164,7 @@ input{font:inherit;color:inherit;user-select:text;-webkit-user-select:text}
 .aiForm input{flex:1;min-width:0;background:rgba(243,241,234,.07);border:1px solid var(--line);border-radius:12px;padding:10px 12px;font-size:.92rem}
 .aiForm input:focus{outline:none;border-color:rgba(243,241,234,.55)}
 .aiForm button{border:1px solid var(--line);border-radius:12px;padding:0 12px;font-weight:700;font-size:.9rem;white-space:nowrap}
-.aiForm button.go{background:var(--ink);color:#121417;border-color:var(--ink)}.aiForm button:disabled{opacity:.5}
+.aiForm button.go{background:var(--ink);color:#121417;border-color:var(--ink)}.aiForm button:disabled{opacity:.4;cursor:default}
 .aiForm button.on{background:var(--main);border-color:var(--main);color:#fff}
 .aiForm button.mic{width:44px;padding:0;display:grid;place-items:center;color:var(--ink)}
 .aiForm button.mic:hover{border-color:rgba(243,241,234,.5)}
@@ -301,7 +301,7 @@ input{font:inherit;color:inherit;user-select:text;-webkit-user-select:text}
   <p id="say"></p>
   <div id="chips" hidden></div>
   <form id="aiAsk" hidden autocomplete="off">
-    <div class="aiForm"><input id="aiIn" maxlength="400" placeholder="Or just tell me: “legs, sore knee, 30 min”" aria-label="Tell the coach what you want to train"><button type="button" class="mic" id="aiMic" aria-label="Speak to the coach" title="Speak"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="2.5" width="6" height="11.5" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M8.5 21h7"/></svg></button><button type="submit" class="go" id="aiGo">Plan it</button></div>
+    <div class="aiForm"><input id="aiIn" maxlength="400" placeholder="Or just tell me: “legs, sore knee, 30 min”" aria-label="Tell the coach what you want to train"><button type="button" class="mic" id="aiMic" aria-label="Speak to the coach" title="Speak"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="2.5" width="6" height="11.5" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M8.5 21h7"/></svg></button><button type="submit" class="go" id="aiGo" disabled>Plan it</button></div>
     <span class="hint">Your goal, time, equipment or anything that hurts. I’ll build the plan around it.</span>
   </form>
 </div>
