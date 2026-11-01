@@ -1,21 +1,23 @@
 
 // ---------------------------------------------------------------- arms: biceps (6) and triceps (6)
 // carry a straight bar or EZ bar from the wall rack, and put it back
-// grip the bar on the rack with open hands, close the fingers, a beat, lift it off the rail and step back. The straight bar then
-// goes up onto the shoulders (mid -> chest -> overhead -> behind the head -> upper back) for the walk; the EZ bar stays in the hands.
+// grip the bar on the rack with open hands, close the fingers, a beat, lift it off the rail and step back; both bars are carried
+// in the hands at the thighs (a curl bar has no reason to go up onto the back and down again)
 function fetchBar(e,then){const fr=barFrame(e.needs);hero.barFr=fr;const straight=e.needs==='bar';hero.barGrip=straight?.33*D.s:null;setFlow('walking');walkStatus(e.needs==='ez'?'Grabbing the EZ bar':'Grabbing a barbell');
   goTo(hero,fr.pre,{face:fr.rot,land:1,done:()=>{runSeq(hero,fr,[{walk:[0,-11.8],land:1,d:.8},
     {d:1.1,pose:c=>barPickPose(c,fr,.1,c.barGrip)},{d:.5,pose:c=>barPickPose(c,fr,1,c.barGrip)},{d:.25,pose:c=>barPickPose(c,fr,1,c.barGrip)},
-    {call:c=>{scene.attach(fr.bar);grab(c,fr.bar,'Left',{other:'Right',align:'bar'});c.bar=fr.bar;}},
-    {d:1.0,pose:c=>barStage(c,'thighs',{z:-11.8})},{call:c=>{c.carry='bar';}},{walk:[0,-12.5],back:true,land:1,d:.9},
-    ...(straight?barUpSteps(fr):[])],()=>then());}});}
+    {call:c=>{scene.attach(fr.bar);grab(c,fr.bar,'Left',BAR_HOLD);c.bar=fr.bar;}},
+    {d:1.0,pose:c=>barStage(c,'thighs',{z:-11.8})},{call:c=>{c.carry='bar';}},{walk:[0,-12.75],back:true,land:1,d:1.1}],()=>then());}});}
 function returnBar(then){const fr=hero.barFr;if(!fr){then();return;}walkStatus('Putting the bar back');setFlow('walking');
   goTo(hero,fr.pre,{face:fr.rot,land:1,done:()=>{runSeq(hero,fr,[...(hero.carry==='backBar'?barDownSteps({x:0,z:-12.5,h:0}):[]),
     {walk:[0,-11.8],land:1,d:.8},{call:c=>{c.carry=null;}},{d:1.2,pose:c=>barPickPose(c,fr,1,c.barGrip)},{d:.2,pose:c=>barPickPose(c,fr,1,c.barGrip)},
     {call:c=>{c.hold=[];fr.home.parent.attach(fr.bar);fr.bar.position.copy(fr.home.p);fr.bar.quaternion.identity();c.bar=null;}},
     {d:.5,pose:c=>barPickPose(c,fr,.1,c.barGrip)},{d:1.0,pose:c=>standPose(c,{z:-11.8})},{walk:[0,-12.5],back:true,land:1,d:.9}],()=>{hero.barFr=null;hero.barGrip=null;then();});}});}
 function holdBarThighs(c,grip){const g=grip||c.barGrip||.19;const T=torsoAxes(c);const ct=wpos(c.bones.Hips).addScaledVector(T.F,.17).addScaledVector(T.U,-.22);
-  for(const s of[1,-1])armTo(c,sideOf(s),ct.clone().addScaledVector(T.L,s*g),{hd:V(0,-1,0),pn:T.F.clone().negate(),pole:T.F.clone().negate().addScaledVector(T.L,s*.3)});}
+  for(const s of[1,-1])armTo(c,sideOf(s),ct.clone().addScaledVector(T.L,s*g),{hd:V(0,-1,0),pn:T.F.clone().negate(),pole:T.F.clone().negate().addScaledVector(T.L,s*.3),grip:T.L,...BAR_GRIP});}
+// hold a bar in both hands: holdUpdate puts it midway between this hand's contact and the other hand's gripPoint (which uses
+// the default .075/.022 seat), so this side's offsets are mirrored about BAR_GRIP to land the bar on BAR_GRIP's seat in both
+const BAR_HOLD={other:'Right',align:'bar',palm:2*BAR_GRIP.palm-.075,off:2*BAR_GRIP.off-.022};
 // hands on a bar resting across the upper back, `g` out from the centre
 function barBackHands(c,g){const ct=barOnBack(c);const T=torsoAxes(c);for(const s of[1,-1])armTo(c,sideOf(s),ct.clone().addScaledVector(T.L,s*g),{hd:T.U.clone().addScaledVector(T.F,.3),pn:T.F.clone().negate(),pole:T.U.clone().negate().addScaledVector(T.F,-.5).addScaledVector(T.L,s*.2)});}
 // standing at o (canonical x, z, heading) with the bar at one stage of the lift onto the shoulders; the bar follows the hands
@@ -71,14 +73,18 @@ function ropeFollow(c,o={}){const P=ST.P;const l=toC(ST,gripPoint(c,'Left')),r=t
   P.stackTop.position.y=clamp((pul.distanceTo(clip)-.16)*.5,0,.3);}
 // the lifter's left hand on the cable column's carriage, whatever height it is at: on the toes for a high one, crouched for a low one
 const COL_Z=-11.3; // where the lifter stands to set the column (toes just clear of the tower)
-function colReach(c,y){const lo=clamp((1.05-y)/.8,0,1),hi=clamp((y-1.6)/.4,0,1);
+function colReach(c,y,reach){const lo=clamp((1.05-y)/.8,0,1),hi=clamp((y-1.6)/.4,0,1);
   standPose(c,{z:COL_Z-.18*lo,arms:'none',drop:.75*lo,hinge:36*lo,back:.05*lo,shrug:.03+.22*hi,stance:.13+.22*lo,look:28*hi,toe:8+24*lo});
-  armsHang(c,0,-1);const p=ST.P.car.position.clone().add(V(.065,-.06*hi,-.02));armTo(c,'Left',p,{hd:V(0,.3*hi,1),pn:V(-1,0,0),pole:V(.5,-1,0)});}
+  // the hand takes the carriage by its side, in front of the column's face, fingers up (never reaching into the column)
+  // reach < 1: the hand is on its way from hanging at the side, travelling in front of the column (bowed out toward the lifter)
+  armsHang(c,0,-1);const p=ST.P.car.position.clone().add(V(.075,-.06*hi,-.055));const k=reach??1;if(k<=0)return;
+  const H0=wpos(c.bones.LeftHand),q=H0.clone().lerp(p,k).add(V(0,0,-.22*Math.sin(Math.PI*k)));q.z=Math.min(q.z,-11.13+(.0175*k));
+  armTo(c,'Left',q,{hd:V(0,1,.15),pn:V(-1,0,0),pole:V(.5,-1,0),curl:k<1?.3:1});}
 // cable column: reach the carriage, slide it to the height the exercise needs, clip the attachment, stand back up
 // (the slide takes longer the further the carriage goes: the hips drop or rise with it, never faster than about half a metre a second)
 function colSet(y,att){const dy=Math.abs(((ST&&ST.P&&ST.P.car)?ST.P.car.position.y:y)-y);return [
   {walk:[0,COL_Z-.22],land:1,d:.9}, // the walk clip's leading foot swings ahead, so stop short of the tower and settle the rest
-  {d:1.3,anim:settle(c=>colReach(c,ST.P.car.position.y))},
+  {d:.9,anim:settle(c=>colReach(c,ST.P.car.position.y,0))},{d:.8,anim:(c,k)=>colReach(c,ST.P.car.position.y,smooth(k))},
   {d:clamp(.8+dy*1.9,1.2,3.4),anim:(c,k)=>{const P=ST.P;P._y0=P._y0??P.car.position.y;P.setPulley(lerp(P._y0,y,smooth(k)));P.use(att);P.rest();colReach(c,P.car.position.y);if(k>=1)P._y0=undefined;}},
   {d:1.3,anim:settle(c=>standPose(c,{z:COL_Z-.08}),{step:1})}];} // standing up, a small step back off the tower's base
 
@@ -91,15 +97,25 @@ function curlArm(c,s,o){const sd=sideOf(s);const T=o.T||torsoAxes(c);const down=
   const e=o.bend*DEG;const fa=ua.clone().multiplyScalar(Math.cos(e)).addScaledVector(perp,Math.sin(e)).addScaledVector(out,o.in?-o.in:0).normalize();
   const grip=o.grip||'sup';let pn=grip==='sup'?V().crossVectors(fa,out).multiplyScalar(-1):grip==='pro'?V().crossVectors(fa,out):out.clone().multiplyScalar(-1);
   pn.addScaledVector(fa,-pn.dot(fa)).normalize();let hd=fa.clone();if(o.wrist)hd.applyAxisAngle(V().crossVectors(fa,pn).normalize(),-o.wrist*DEG*(grip==='sup'?1:1));
-  const r=armDir(c,sd,ua,fa,pn,{hd,curl:o.curl??1});return {...r,ua,fa,pn};}
-function placeDB(c,P,s,r){if(!P.db)return;const d=P.db[s>0?0:1];if(!d)return;const f=handFrame(c,sideOf(s));d.position.copy(r.contact);d.quaternion.setFromUnitVectors(V(1,0,0),f.tz.normalize());}
+  // the handle sits deep in the palm with the fingers wrapped round it (BAR_GRIP)
+  const cu=o.curl??BAR_GRIP.curl;const r=armDir(c,sd,ua,fa,pn,{hd,curl:cu,palm:BAR_GRIP.palm,off:BAR_GRIP.off});
+  // o.axis: a bar's axis; turn the hand at the wrist so its knuckle line lies along the bar (same palm contact)
+  if(o.axis){const B=c.bones;let h=hd.clone(),p=pn.clone();
+    for(let it=0;it<4;it++){const kn=wpos(B[sd+'HandIndex1']).sub(wpos(B[sd+'HandPinky1'])).normalize();const g=o.axis.clone().normalize();if(kn.dot(g)<0)g.negate();
+      if(kn.angleTo(g)<.02)break;const q=new THREE.Quaternion().setFromUnitVectors(kn,g);h.applyQuaternion(q);p.applyQuaternion(q);p.addScaledVector(h,-p.dot(h)).normalize();
+      setHandWorld(B[sd+'Hand'],s>0,h,p);curlHand(c,sd,cu);}
+    r.contact=r.W.clone().addScaledVector(h,BAR_GRIP.palm*D.s).addScaledVector(p,BAR_GRIP.off*D.s);}
+  return {...r,ua,fa,pn};}
+// the dumbbell's handle (its x axis) lies along the knuckle line, across the palm, as when it was picked up (grab 'thumb')
+function placeDB(c,P,s,r){if(!P.db)return;const d=P.db[s>0?0:1];if(!d)return;const sd=sideOf(s);const kn=wpos(c.bones[sd+'HandIndex1']).sub(wpos(c.bones[sd+'HandPinky1']));
+  d.position.copy(r.contact);d.quaternion.setFromUnitVectors(V(1,0,0),kn.lengthSq()>1e-8?kn.normalize():handFrame(c,sd).tz.normalize());}
 function placeBar2(P,a,b,obj){const o=obj||P.bar;if(!o)return;o.position.copy(a).add(b).multiplyScalar(.5);o.quaternion.setFromUnitVectors(V(1,0,0),V().subVectors(a,b).normalize());}
 const flexOf=(F,k,lo=8,hi=135)=>lerp(F.half?Math.max(lo,45):lo,hi,k);
 // standing barbell curl (in front of the bar rack) / cable curl at the column
 function poseBBCurl(c,F,b,u,P){const k=smooth(clamp(u,0,1));const sw=F.swing&&b.phase===2?Math.sin(Math.PI*b.k):0;
   standPose(c,{z:-12,hinge:F.swing?-20*sw:(F.cable?5:0),arms:'none',look:0,stance:.12});const T=torsoAxes(c);
   const flex=F.fwd?lerp(-2,38,k):lerp(-3,F.cable?6:4,k);const bend=flexOf(F,k,F.cable?14:8);
-  const a=curlArm(c,1,{T,flex,bend,grip:'sup'}),bb=curlArm(c,-1,{T,flex,bend,grip:'sup'});
+  const a=curlArm(c,1,{T,flex,bend,grip:'sup',axis:T.L}),bb=curlArm(c,-1,{T,flex,bend,grip:'sup',axis:T.L});
   if(F.cable){placeBar2(P,a.contact,bb.contact,P.sbar);P.cableTo(P.sbar.position);P.stackTop.position.y=.04+.25*k;}else placeBar2(P,a.contact,bb.contact);return u;}
 // hammer curl: dumbbells, thumbs up
 function poseHammer(c,F,b,u,P){const k=smooth(clamp(u,0,1));const sw=F.swing&&b.phase===2?Math.sin(Math.PI*b.k):0;
@@ -118,7 +134,7 @@ function posePreacher(c,F,b,u,P){const k=smooth(clamp(u,0,1));
   for(const s of[1,-1]){legTo(c,sideOf(s),V(s*.18,D.ankY,PR.footZ),V(s*.15,.4,1));footTo(c,sideOf(s),V(s*.2,.035,PR.footZ+.19));}
   const T=torsoAxes(c);const lift=F.lift?.11*k:0;const down=PR.padDir.clone();const fwd=V(0,Math.SQRT1_2,Math.SQRT1_2);
   let bend=lerp(F.half?45:12,125,k);if(F.bounce&&b.phase===1)bend=Math.max(4,12-10*Math.sin(Math.PI*b.k));
-  const pts=[];for(const s of[1,-1]){const r=curlArm(c,s,{T,down:down.clone().applyAxisAngle(V(1,0,0),-lift*5),fwd,flex:0,bend,grip:'sup',out:-.02,curl:F._curl??1});pts.push(r.contact);}
+  const pts=[];for(const s of[1,-1]){const r=curlArm(c,s,{T,down:down.clone().applyAxisAngle(V(1,0,0),-lift*5),fwd,flex:0,bend,grip:'sup',out:-.02,curl:(F._curl??1)*BAR_GRIP.curl,axis:V(1,0,0)});pts.push(r.contact);}
   placeBar2(P,pts[0],pts[1]);return u;}
 // concentration curl: seated on the bench end, elbow braced on the inside of the right thigh
 function poseConcentration(c,F,b,u,P){const k=smooth(clamp(u,0,1));const rock=F.rock&&b.phase===2?Math.sin(Math.PI*b.k):0;
@@ -130,7 +146,7 @@ function poseConcentration(c,F,b,u,P){const k=smooth(clamp(u,0,1));const rock=F.
   const S=wpos(c.bones.RightArm);const lift=F.off?.13*k:0;const ua=brace.clone().add(V(.07,.05,0)).sub(S).normalize().applyAxisAngle(V(1,0,0),-lift*7.5);
   const perp=V(.35,.25,1).normalize();perp.addScaledVector(ua,-perp.dot(ua)).normalize();const e=lerp(F.half?42:6,132,k)*DEG;
   const fa=ua.clone().multiplyScalar(Math.cos(e)).addScaledVector(perp,Math.sin(e)).normalize();const pn=V().crossVectors(fa,V(-1,0,0)).multiplyScalar(-1).normalize();
-  const r=armDir(c,'Right',ua,fa,pn,{hd:fa});if(P.db&&P.db[1]){const f=handFrame(c,'Right');P.db[1].position.copy(r.contact);P.db[1].quaternion.setFromUnitVectors(V(1,0,0),f.tz.normalize());}
+  const r=armDir(c,'Right',ua,fa,pn,{hd:fa,...BAR_GRIP});placeDB(c,P,-1,r);
   c._brace=brace;return u;}
 // ---- triceps
 // rope pushdown at the column (top pulley), facing the tower
@@ -195,8 +211,10 @@ Object.assign(MEAS,{
 function turnSteps(x,z,h0,h1,pf=standPose,d=.45){const dh=angDiff(h1,h0);const n=Math.max(1,Math.ceil(Math.abs(dh)/(100*DEG)-1e-3));const out=[];
   for(let i=1;i<=n;i++){const h=h0+dh*i/n;out.push({d,anim:settle(c=>pf(c,{x,z,h}),{step:1})});}return out;}
 const standBarThighs=(c,o)=>{standPose(c,{...o,arms:'none'});holdBarThighs(c);};
-ENTRY.barStand={land:1,pre:[0,-12.6],face:0,enter:(st,e)=>[{walk:[0,-12],land:1,d:.8},{call:c=>{c.carry=null;}},{d:.8,pose:exP(0,1)},{d:1.0,anim:exFrom(0,1)}],
-  leave:(st,e)=>[{d:.8,pose:c=>{standPose(c,{z:-12,arms:'none'});holdBarThighs(c);}},{call:c=>{c.carry='bar';}},{walk:[0,-12.6],back:true,land:1,d:.8}]};
+// pre is the very spot the lifter steps back to from the curl rack (1.2 m clear of the rack bar, so the 2.2 m barbell swings
+// past the rack's uprights and the EZ bar as he turns round), so he just turns there and steps up
+ENTRY.barStand={land:1,pre:[0,-12.43],face:0,enter:(st,e)=>[{walk:[0,-12],land:1,d:.8},{call:c=>{c.carry=null;}},{d:.8,pose:exP(0,1)},{d:1.0,anim:exFrom(0,1)}],
+  leave:(st,e)=>[{d:.8,pose:c=>{standPose(c,{z:-12,arms:'none'});holdBarThighs(c);}},{call:c=>{c.carry='bar';}},{walk:[0,-12.43],back:true,land:1,d:.8}]};
 // seated sideways-on to the front, feet on the floor (preacher seat)
 function sitSide(c,hip,lean,feetZ){setRoot(c,qX(lean*DEG),hip);resetRest(c);c.root.updateMatrixWorld(true);for(const s of[1,-1])legTo(c,sideOf(s),V(s*.17,D.ankY,feetZ),V(s*.2,.4,1));armsHang(c);}
 // the bar waits on the rest right where the hands are at the bottom of a rep: reach it with open hands, close them, lift it off
@@ -211,9 +229,9 @@ const prHalfOut=c=>prHalf(c,.27); // the right foot still this side of the rail,
 ENTRY.preacher={land:1,pre:[.85,-12.3],face:-Math.PI/2,
   enter:(st,e)=>[{walk:[PR_SIDE.x,-12.3],land:1,d:.7},...turnSteps(PR_SIDE.x,-12.3,-Math.PI/2,0),{d:.6,anim:settle(c=>standPose(c,PR_SIDE),{step:1})},
     {d:1.1,anim:settle(prHalfOut,{step:1})},{d:.9,anim:settle(prHalf,prStep)},{d:1.1,anim:settle(c=>sitSide(c,V(0,PR.seatY+.1*D.s,PR.seatZ),8,-12.02),{step:1})},
-    {d:1.2,anim:settle(c=>preacherAt(c,st.P,.1,1))},{d:.4,pose:c=>preacherAt(c,st.P,1,1)},{call:c=>grab(c,st.P.bar,'Left',{other:'Right',align:'bar'})},
+    {d:1.2,anim:settle(c=>preacherAt(c,st.P,.1,1))},{d:.4,pose:c=>preacherAt(c,st.P,1,1)},{call:c=>grab(c,st.P.bar,'Left',BAR_HOLD)},
     {d:.5,pose:exP(0,1)},{call:c=>{release(c,st.P.bar);}},{d:1.0,anim:exFrom(0,1)}],
-  leave:(st,e)=>[{call:c=>grab(c,st.P.bar,'Left',{other:'Right',align:'bar'})},{d:.9,pose:exP(0,1)},{d:.4,pose:c=>preacherAt(c,st.P,1)},
+  leave:(st,e)=>[{call:c=>grab(c,st.P.bar,'Left',BAR_HOLD)},{d:.9,pose:exP(0,1)},{d:.4,pose:c=>preacherAt(c,st.P,1)},
     {call:c=>{release(c,st.P.bar);st.P.bar.position.copy(st.P.home);st.P.bar.quaternion.identity();}},{d:.4,pose:c=>preacherAt(c,st.P,.1,1)},
     {d:1.0,anim:settle(c=>{sitSide(c,V(0,PR.seatY+.1*D.s,PR.seatZ),8,-12.02);st.P.bar.position.copy(st.P.home);st.P.bar.quaternion.identity();})},
     {d:1.1,anim:settle(prHalf,{step:1})},{d:.9,anim:settle(prHalfOut,prStep)},{d:1.1,anim:settle(c=>standPose(c,PR_SIDE),{step:1})},...turnSteps(PR_SIDE.x,PR_SIDE.z,0,Math.PI/2),{walk:[.85,-12.3],land:1,d:.6}]};
@@ -257,14 +275,26 @@ ENTRY.cableBack={land:1,pre:[0,-12.35],face:0,
   leave:(st,e)=>[{d:.9,pose:exP(0,1)},{d:1.0,anim:settle(c=>ropeAtThighs(c,{z:-11.6,h:Math.PI})),props:c=>ropeFollow(c)},...ropeTurn(-11.6,-11.5,Math.PI,0),
     {d:1.3,anim:settle(ropeFloorPick),props:c=>ropeFollow(c)},{d:1.2,anim:settle(c=>standPose(c,{z:-11.5})),props:(c,k)=>{const P=st.P;const p=P.pulW().add(P.hang);P.attPos().lerp(p,smooth(k));P.cableTo(P.attPos());if(k>=1)P.rest();}},{walk:[0,-12.35],back:true,land:1,d:.8}]};
 // upright dip: hands come up outside the bars and then down onto them (never through them)
-function dipHandsOver(c){standPose(c,{z:-11.95,arms:'none'});const hx=D.shx+.06*D.s;for(const s of[1,-1])armTo(c,sideOf(s),V(s*(hx+.1),DIP_Y+.16,DIP_Z),{hd:V(-s*.7,-.3,.6),pn:V(-s*.3,-1,0),pole:V(s*.6,.1,-.8),curl:.3});}
+function dipHandsOver(c){standPose(c,{z:DIP_STAND_Z,arms:'none'});const hx=D.shx+.06*D.s;for(const s of[1,-1])armTo(c,sideOf(s),V(s*(hx+.1),DIP_Y+.16,DIP_HZ),{hd:V(-s*.7,-.3,.6),pn:V(-s*.3,-1,0),pole:V(s*.6,.1,-.8),curl:.3});}
 // short backward (or forward) steps of about 30 cm from hips z0 to z1, arms held out to clear the handles
 function shuffle(z0,z1,o={}){const n=Math.max(1,Math.round(Math.abs(z1-z0)/.3));const out=[];for(let i=1;i<=n;i++){const z=lerp(z0,z1,i/n);out.push({d:o.d??.8,anim:settle(c=>standPose(c,{z,armOut:.6}),{step:1})});}return out;}
 ENTRY.dipA={land:1,pre:[0,-10.8],face:Math.PI,
-  enter:(st,e)=>[...turnSteps(0,-10.8,Math.PI,0),{walk:[0,-11.3],back:true,land:1,d:1.4},{d:.6,anim:settle(c=>standPose(c,{z:-11.3,armOut:.6}))},...shuffle(-11.3,-11.95),{d:.6,anim:settle(dipHandsOver)},{d:.5,anim:settle(c=>{standPose(c,{z:-11.95,arms:'none'});dipHands(c);})},{d:.7,anim:settle(exP(1,3))}],
-  leave:(st,e)=>[{d:.8,anim:settle(c=>{standPose(c,{z:-11.95,arms:'none'});dipHands(c);})},{d:.5,anim:settle(dipHandsOver)},{d:.5,anim:settle(c=>standPose(c,{z:-11.95,armOut:.6}))},...shuffle(-11.95,-11.3),{walk:[0,-10.8],land:1,d:1.4}]};
+  enter:(st,e)=>[...turnSteps(0,-10.8,Math.PI,0),{walk:[0,-11.3],back:true,land:1,d:1.4},{d:.6,anim:settle(c=>standPose(c,{z:-11.3,armOut:.6}))},...shuffle(-11.3,DIP_STAND_Z),{d:.6,anim:settle(dipHandsOver)},{d:.5,anim:settle(c=>{standPose(c,{z:DIP_STAND_Z,arms:'none'});dipHands(c);})},{d:.7,anim:settle(exP(1,3))}],
+  leave:(st,e)=>[{d:.8,anim:settle(c=>{standPose(c,{z:DIP_STAND_Z,arms:'none'});dipHands(c);})},{d:.5,anim:settle(dipHandsOver)},{d:.5,anim:settle(c=>standPose(c,{z:DIP_STAND_Z,armOut:.6}))},...shuffle(DIP_STAND_Z,-11.3),{walk:[0,-10.8],land:1,d:1.4}]};
+// before fetching the dumbbells (hands still free): walk to the side of the incline bench, take the back pad by its edge
+// and lift it to the curl's 50°, so the bench never moves by itself
+function adjustInclineBench(e,then){const st=STATIONS[e.station],P=st.P;const a0=P.hinge.rotation.x/DEG,a1=INC_CURL;if(Math.abs(a0-a1)<1){then();return;}
+  const hz=HIPS_Z-.03,zs=hz-.55,L=1.02,h=-Math.PI/2;
+  const edge=(a,f)=>{const th=a*DEG;return V(.165,BENCH_TOP,hz).addScaledVector(V(0,Math.sin(th),-Math.cos(th)),f*L).addScaledVector(V(0,Math.cos(th),Math.sin(th)),-.045);};
+  const pose=(a,curl)=>c=>{standPose(c,{x:.55,z:zs,h,arms:'none'});const th=a*DEG;const n=V(0,Math.cos(th),Math.sin(th));
+    for(const [s,f] of [[1,.55],[-1,.9]])armTo(c,sideOf(s),edge(a,f),{hd:n.clone().negate().add(V(-.25,0,0)),pn:V(-1,0,0),pole:V(.6,-1,0),curl});};
+  setFlow('walking');walkStatus('Setting the bench to '+a1+'°');
+  goTo(hero,toW(st,V(.55,0,zs)),{face:headingW(st,h),land:1,done:()=>runSeq(hero,st,[
+    {d:.9,anim:settle(pose(a0,.15))},{d:.35,pose:pose(a0,.6)},
+    {d:1.5,anim:(c,k)=>{const a=lerp(a0,a1,smooth(k));P.setAngle(a);pose(a,.6)(c);}},
+    {d:.35,pose:pose(a1,.15)},{d:.8,anim:settle(c=>standPose(c,{x:.55,z:zs,h}))}],()=>then())});}
 ENTRY.inclineCurl={land:1,pre:[0,-10.45],face:Math.PI,
-  enter:(st,e)=>[...turnSteps(0,-10.45,Math.PI,0,standDB,.5),{call:c=>{c.carry=null;}},{d:1.2,anim:(c,k)=>{st.P.setAngle(lerp(st.P._ang??30,INC_CURL,smooth(k)));standDB(c,{z:-10.45});}},{call:()=>{st.P._ang=INC_CURL;}},{walk:[0,-11.08],back:true,land:1,d:1.1},
+  enter:(st,e)=>[...turnSteps(0,-10.45,Math.PI,0,standDB,.5),{walk:[0,-11.08],back:true,land:1,d:1.1},{call:c=>{c.carry=null;}},
     {d:1.0,anim:settle(c=>{st.P.setAngle(INC_CURL);benchSitDB(c,{lean:2});})},{d:1.3,anim:settle(exP(0,1))},{d:1.0,anim:exFrom(0,1)}],
   leave:(st,e)=>[{d:.8,pose:exP(0,1)},{d:1.2,anim:settle(c=>benchSitDB(c,{lean:2}))},{d:1.0,anim:settle(c=>standDB(c,{z:-11.08}))},{call:c=>{c.carry='db';}},{walk:[0,-10.45],land:1,d:1.0}]};
 ENTRY.concentration={land:1,pre:[0,-10.45],face:Math.PI,
@@ -294,7 +324,7 @@ defEx('bbCurl',{group:'biceps',name:'Barbell curl',eq:'Barbell',part:'Biceps',st
     swing:MS('Body swing','Torso throws the bar up','The torso leans back 15–25° and the hips push forward as the bar goes up.','The lower back and hips lift the bar; the biceps relax.','The weight climbs faster than your arms earn it; lower-back strain.','Elbows still, chest tall.',{swing:1,meas:'leanRange',warn:'Body swings',warnAt:'lowback',cam:'sideFlat'}),
     fwd:MS('Elbows drift forward','Elbows travel up and forward','The elbows travel forward and up so the upper arms reach about 35° at the top.','The front shoulders take over at the top.','Tired front shoulders and stalled curl progress.','Pin the elbows to your sides.',{fwd:1,meas:'armTop',warn:'Elbows forward',warnAt:'elbow',cam:'sideFlat',mul:{deltF:3}}),
     half:MS('Half reps','Arms never straighten','The elbows stay bent about 45° at the bottom.','You skip the stretched range that drives growth.','Less growth per set.','Straighten the arms every rep.',{half:1,meas:'flexMin',warn:'Stops short',warnAt:'elbow',cam:'sideFlat'})})});
-defEx('inclineCurl',{group:'biceps',name:'Incline dumbbell curl',eq:'Dumbbell',part:'Biceps (long head)',station:'dbIncline',entry:'inclineCurl',kind:'curl',pose:poseInclineCurl,needs:'db',dbSize:'light',
+defEx('inclineCurl',{group:'biceps',name:'Incline dumbbell curl',eq:'Dumbbell',part:'Biceps (long head)',station:'dbIncline',entry:'inclineCurl',kind:'curl',pose:poseInclineCurl,needs:'db',dbSize:'light',prep:adjustInclineBench,
   quip:'Lean back. The stretch is the exercise.',mus:{biLong:[1,'m'],biShort:[.85,'m'],forearm:[.5,'h']},
   labels:[['Biceps (long head)','biLong','m'],['Forearms','forearm','h']],center:V(0,.95,-12.1),cam:'sideFlat',coachSpot:{p:[-1.5,-11.6],h:Math.PI/2},
   steps:steps4([['Lower to a full stretch','2 sec'],['Arms hang straight','pause one second'],['Curl without moving the elbows','palms up'],['Squeeze','at shoulder level']]),

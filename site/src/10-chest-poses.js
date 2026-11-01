@@ -2,6 +2,8 @@
 // ---------------------------------------------------------------- chest: equipment and pose families (canonical frame)
 function torsoPole(s,f,ang){return V(s*Math.sin(f),0,0).add(V(0,-Math.sin(ang),Math.cos(ang)).multiplyScalar(Math.cos(f))).add(V(0,Math.cos(ang),Math.sin(ang)).multiplyScalar(-.75)).normalize();}
 const PRESS_HD=V(0,1,-.38).normalize();
+// a barbell sits deep in the palm with the fingers wrapped over it (measured: no finger joint inside the bar, tightest wrap)
+const BAR_GRIP={palm:.085,off:.008,curl:1.2};
 function poseBar(c,F,b,u,P){ // barbell on a flat / incline / decline bench: vertical bar path
   const ang=(F.angle||0)*DEG;P.setAngle&&P.setAngle(F.angle||0);
   if(F.bounce&&b.phase===0)u=1-Math.pow(b.k,1.8);
@@ -14,12 +16,15 @@ function poseBar(c,F,b,u,P){ // barbell on a flat / incline / decline bench: ver
   const y=lerp(touchY,lockY,u),z=S.z+(tz-S.z)*Math.pow(1-clamp(u,0,1),1.5),tr=tremorOf(b);
   const grip=F.grip??GRIP;
   const hands=[V(grip,y+tr,z),V(-grip,y-tr,z)];const f=F.flare*DEG;
-  for(const s of[1,-1])armTo(c,sideOf(s),hands[s>0?0:1],{hd:PRESS_HD,pn:V(0,0,1),pole:torsoPole(s,f,ang)});
+  for(const s of[1,-1])armTo(c,sideOf(s),hands[s>0?0:1],{hd:PRESS_HD,pn:V(0,0,1),pole:torsoPole(s,f,ang),...BAR_GRIP});
   P.bar.position.addVectors(hands[0],hands[1]).multiplyScalar(.5);P.bar.quaternion.identity();return u;}
 // lying on the bench holding the bar at given hand points (unrack / rerack)
 function poseBarHands(c,P,hands,ang=0,feet,curl=1){P.setAngle&&P.setAngle(ang/DEG);lieBody(c,{angle:ang,feet});const f=52*DEG; // curl < 1: fingers still open
-  for(const s of[1,-1])armTo(c,sideOf(s),hands[s>0?0:1],{hd:PRESS_HD,pn:V(0,0,1),pole:torsoPole(s,f,ang),curl});
+  for(const s of[1,-1])armTo(c,sideOf(s),hands[s>0?0:1],{hd:PRESS_HD,pn:V(0,0,1),pole:torsoPole(s,f,ang),...BAR_GRIP,curl:curl*BAR_GRIP.curl});
   P.bar.position.addVectors(hands[0],hands[1]).multiplyScalar(.5);P.bar.quaternion.identity();}
+// the hands at the top of the rep exactly as poseBar puts them (u=1), so the lift-off ends where the first rep starts
+function barTop(c,F){const ang=(F.angle||0)*DEG;lieBody(c,{angle:ang,feet:F.feet,neck:F.neck||0});
+  const [sl,sr]=shoulders(c),S=sl.clone().add(sr).multiplyScalar(.5),y=S.y+reach()+.078*D.s,g=F.grip??GRIP;return [V(g,y,S.z),V(-g,y,S.z)];}
 function lockHands(deg=0,g=GRIP){const S=lieShoulderAt(deg);const y=S.y+Math.sqrt(Math.pow((D.arm+D.fore)*.97,2)-Math.pow(g-D.shx,2))+.078*D.s;return [V(g,y,S.z),V(-g,y,S.z)];}
 function poseDB(c,F,b,u,P){ // two dumbbells: apart at the bottom, converging over the shoulders at the top
   const ang=(F.angle||0)*DEG;P.setAngle&&P.setAngle(F.angle||0);lieBody(c,{angle:ang,breathe:breatheOf(b),look:b.phase===2?1:0,feet:F.feet});
@@ -29,7 +34,7 @@ function poseDB(c,F,b,u,P){ // two dumbbells: apart at the bottom, converging ov
   const lockY=S.y+Math.sqrt(Math.pow((D.arm+D.fore)*.97,2)-Math.pow(Math.max(0,D.shx-xt),2))+.078*D.s;
   const f=F.flare*DEG,y=lerp(yb,lockY,u),z=S.z+(tz-S.z)*Math.pow(1-uu,1.5);
   for(const s of[1,-1]){const i=s>0?0:1;const ct=V(s*lerp(xb,xt,smooth(uu)),y,z).addScaledVector(nrm,-deepOff);
-    armTo(c,sideOf(s),ct,{hd:PRESS_HD,pn:V(0,0,1),pole:torsoPole(s,f,ang)});if(P.db){P.db[i].position.copy(ct);P.db[i].quaternion.identity();}}
+    armTo(c,sideOf(s),ct,{hd:PRESS_HD,pn:V(0,0,1),pole:torsoPole(s,f,ang),...BAR_GRIP});if(P.db){P.db[i].position.copy(ct);gripAlong(c,sideOf(s),P.db[i],V(1,0,0));}}
   return u;}
 function poseFly(c,F,b,u,P){ // arms sweep in a wide arc with a fixed soft bend
   P.setAngle&&P.setAngle(0);lieBody(c,{breathe:breatheOf(b)});const [sl,sr]=shoulders(c);c._S=sl.clone().add(sr).multiplyScalar(.5);const uu=clamp(u,0,1);
@@ -37,25 +42,25 @@ function poseFly(c,F,b,u,P){ // arms sweep in a wide arc with a fixed soft bend
   for(const s of[1,-1]){const i=s>0?0:1,S=s>0?sl:sr;const top=V(-s*.12,1,0).normalize(),lo=V(s*Math.cos(bot),-Math.sin(bot),0);
     const dir=slerpV(lo,top,uu);const ct=S.clone().addScaledVector(dir,elbowD(el)+.07*D.s).add(V(0,0,.04));
     const M0=V(0,S.y+.55,S.z+.04);const pn=M0.clone().sub(ct).normalize().add(V(-s*.45,0,0));
-    armTo(c,sideOf(s),ct,{hd:dir,pn,pole:V(s*.25,-1,.1),follow:true});if(P.db){P.db[i].position.copy(ct);P.db[i].quaternion.setFromAxisAngle(V(0,1,0),Math.PI/2);}}
+    armTo(c,sideOf(s),ct,{hd:dir,pn,pole:V(s*.25,-1,.1),follow:true,...BAR_GRIP});if(P.db){P.db[i].position.copy(ct);gripAlong(c,sideOf(s),P.db[i],V(1,0,0));}}
   return u;}
 function posePressM(c,F,b,u,P){ // seated chest press: handles travel on the machine's fixed path
   const uu=clamp(u,0,1),drop=F.seatlow?.11:0;P.seat.position.y=P.seatBase-drop;
   seatBody(c,{drop,lean:F.roll?.3*smooth(uu):0,protract:F.roll?.3*uu:0,shrug:F.seatlow?.22:.03});
   const R=seatShoulderRef();const z0=R.z+.19*D.s,z1=R.z+(D.arm+D.fore)*.9+.05;
   for(const s of[1,-1]){const i=s>0?0:1;const ct=V(s*(D.shx+.06),R.y-.1*D.s,lerp(z0,z1,uu));
-    armTo(c,sideOf(s),ct,{hd:V(0,0,1),pn:V(-s,0,0),pole:V(s*.6,-1,-.3)});
+    armTo(c,sideOf(s),ct,{hd:V(0,0,1),pn:V(-s,0,0),pole:V(s*.6,-1,-.3),grip:V(0,1,0),...BAR_GRIP});
     P.h[i].position.copy(ct);setRod(P.lever[i],V(s*.62,R.y+.62,SEAT_Z-.3),ct.clone().add(V(0,.09,0)));}
   P.stackTop.position.y=.28*uu;c._S=R;return u;}
 function posePecDeck(c,F,b,u,P){ // seated fly: hands swing around a pivot above each shoulder
   const uu=clamp(u,0,1);seatBody(c,{lean:F.lean?.24:0});const R=seatShoulderRef();
   const phi=lerp((F.start??-15)*DEG,108*DEG,smooth(uu)),r=elbowD(150)+.07*D.s;
   for(const s of[1,-1]){const i=s>0?0:1;const piv=V(s*D.shx,R.y-.07,R.z);const ct=piv.clone().add(V(s*Math.cos(phi)*r,0,Math.sin(phi)*r));
-    const S=wpos(c.bones[sideOf(s)+'Arm']);armTo(c,sideOf(s),ct,{hd:V().subVectors(ct,S),pn:V(-s*Math.sin(phi),0,Math.cos(phi)),pole:V(0,-1,-.25),follow:true});
+    const S=wpos(c.bones[sideOf(s)+"Arm"]);armTo(c,sideOf(s),ct,{hd:V().subVectors(ct,S),pn:V(-s*Math.sin(phi),0,Math.cos(phi)),pole:V(0,-1,-.25),follow:true,grip:V(0,1,0),...BAR_GRIP});
     P.h[i].position.copy(ct);setRod(P.arm[i],V(piv.x,1.98,piv.z),ct.clone().add(V(0,.1,0)));}
   P.stackTop.position.y=.28*uu;c._S=R;c._phi=phi;return u;}
 function poseCable(c,F,b,u,P){ // standing cable fly; high = pulleys above the head
-  const uu=clamp(u,0,1);P.setPulley(F.high?2.02:.32);standBody(c,{lean:(F.lean??(F.high?14:4))*DEG,shrug:F.shrug?.25:.03});
+  const uu=clamp(u,0,1);P.setPulley(F.high?2.02:.32);standBody(c,{z:CROSS_STEP,lean:(F.lean??(F.high?14:4))*DEG,shrug:F.shrug?.25:.03});
   const [sl,sr]=shoulders(c),hipsY=wpos(c.bones.Hips).y;c._S=sl.clone().add(sr).multiplyScalar(.5);
   for(const s of[1,-1]){const i=s>0?0:1,S=s>0?sl:sr;let start,endT;
     if(F.high){start=V(s*.93,.15,-.28);endT=F.upright?V(s*.05,S.y-.17,S.z+.5):V(s*.05,hipsY+.1,S.z+.42);}
@@ -63,9 +68,13 @@ function poseCable(c,F,b,u,P){ // standing cable fly; high = pulleys above the h
     const end=endT.clone().sub(S).normalize(),dir=slerpV(start,end,smooth(uu));
     const el=F.bend?lerp(98,165,smooth(uu)):F.curl?lerp(160,62,smooth(uu)):160;
     const ct=S.clone().addScaledVector(dir,elbowD(el)+.07*D.s);let pn=endT.clone().sub(ct);if(pn.length()<.06)pn=V(-s,0,0);
-    armTo(c,sideOf(s),ct,{hd:dir,pn:pn.normalize().add(V(-s*.3,0,0)),pole:V(s*.3,-1,-.4),follow:true});
-    P.h[i].position.copy(ct);setRod(P.cable[i],P.pulL(i),ct);}
+    armTo(c,sideOf(s),ct,{hd:dir,pn:pn.normalize().add(V(-s*.3,0,0)),pole:V(s*.3,-1,-.4),follow:true,...BAR_GRIP});
+    P.h[i].position.copy(ct);gripAlong(c,sideOf(s),P.h[i]);setRod(P.cable[i],P.pulL(i),ct);}
   P.stackTop.forEach(t=>t.position.y=.3*uu);return u;}
+// a handle held in the fist lies along the knuckle line (index to pinky), so it sits across the palm under the fingers
+function gripAlong(c,side,h,axis=V(0,1,0)){const ax=wpos(c.bones[side+"HandIndex1"]).sub(wpos(c.bones[side+"HandPinky1"]));if(ax.lengthSq()<1e-6)return;h.quaternion.setFromUnitVectors(axis,ax.normalize());}
+// a step in front of the towers: the arms open in front of the columns at the stretch, never back into the rails
+const CROSS_STEP=CZ+.4;
 const PU_HZ=-12.42;
 // ---- feet on the mat on the balls of the feet (push-up, plank, kneeling with the toes tucked)
 const BALL_Y=.035; // height of the ball-of-foot joint when it rests on the mat (the sole and the toes under it)
@@ -82,8 +91,11 @@ function toePlant(c,side,B,dir){const b=c.bones,tb=b[side+'ToeBase'];aim(b[side+
 function ballOf(A,dir,ty=BALL_Y){const dy=Math.min(D.footL*.97,Math.max(0,A.y-ty));return A.clone().addScaledVector(dir.clone().setY(0).normalize(),Math.sqrt(D.footL*D.footL-dy*dy)).setY(A.y-dy);}
 function posePush(c,F,b,u,P){ // push-up: hands fixed on the floor, the body pivots on the toes (rigid from toes to shoulders)
   const uu=clamp(u,0,1);const hx=D.shx+.06*D.s;const y1=.035+(D.arm+D.fore)*.97,y0=F.half?.33:.2*D.s;
-  const L=D.sh.y-.05;const T=V(0,.02,PU_HZ+Math.sqrt(L*L-Math.pow(y1-.02,2)));
-  const hs=D.sh.clone().sub(D.hips).length();const Ank1=T.clone().add(V(0,.12*D.s,-.05)),S1=V(0,y1,PU_HZ);
+  // the toes sit so that shoulders → ankles is exactly the torso plus straight legs: one rigid line, knees straight
+  // (a shorter span makes the leg solver bend the knees)
+  // (c._pushX: the hip joints sit below and behind the hips bone the line runs through; measured once on a first plain pose)
+  const hs=D.sh.clone().sub(D.hips).length(),off=V(0,.12*D.s,-.05),R0=hs+(D.thigh+D.shin)*.9995+(c._pushX||0);
+  const T=V(0,.02,PU_HZ-off.z+Math.sqrt(R0*R0-Math.pow(y1-.02-off.y,2)));const Ank1=T.clone().add(off),S1=V(0,y1,PU_HZ);
   // the body pivots on the balls of the feet (on the mat, a foot length below and toward the head from the ankles):
   // shoulders and ankles turn about them, so the feet never slide or sink while the body goes down and up
   const Bp=ballOf(Ank1,V(0,0,-1)),R=S1.distanceTo(Bp);
@@ -95,15 +107,18 @@ function posePush(c,F,b,u,P){ // push-up: hands fixed on the floor, the body piv
   // face down with the head toward −z, so the lifter's left side is world −x; toes tucked, flat on the mat toward the head
   for(const s of[1,-1]){const side=sideOf(s),w=-s;const A=V(w*.1,AnkC.y,AnkC.z);legTo(c,side,A,V(0,1,0));toePlant(c,side,V(A.x,Bp.y,Bp.z),V(0,0,-1));
     const f=(F.flare??45)*DEG;armTo(c,side,V(w*hx,.012,PU_HZ),{hd:V(0,0,-1),pn:V(0,-1,0),pole:V(w*Math.sin(f),.08,Math.cos(f)).normalize(),curl:0});}
+  if(c._pushX===undefined&&!F.sag&&!F.pike){c._pushX=Math.max(0,(D.thigh+D.shin)*.9995-wpos(c.bones.LeftUpLeg).distanceTo(wpos(c.bones.LeftFoot)));return posePush(c,F,b,u,P);}
   return u;}
 const DIP_Y=1.22,DIP_Z=-12.0;
+// where the hands grip the dip handles: the bare front ends, clear of the forearm pads on the tower (pads end at z −11.94)
+const DIP_HZ=-11.85,DIP_STAND_Z=DIP_HZ+.05;
 function poseDip(c,F,b,u,P){ // dip: hands fixed on the bars, body leans forward (chest) or stays upright (triceps)
   const uu=clamp(u,0,1),lean=(F.lean??24)*DEG,hx=D.shx+.06*D.s;
   const yTop=DIP_Y+(D.arm+D.fore)*.96+.03,yBot=DIP_Y+D.fore*.92+.03-(F.deep?.16*F.deep:0)+(F.half?.12:0);
-  const S=V(0,lerp(yBot,yTop,uu),DIP_Z+lerp(.12,.03,uu)*(lean/(24*DEG)));const q=rootFromAxes(V(0,Math.cos(lean),Math.sin(lean)),V(0,-Math.sin(lean),Math.cos(lean)));
+  const S=V(0,lerp(yBot,yTop,uu),DIP_HZ+lerp(.12,.03,uu)*(lean/(24*DEG)));const q=rootFromAxes(V(0,Math.cos(lean),Math.sin(lean)),V(0,-Math.sin(lean),Math.cos(lean)));
   const H=S.clone().sub(D.sh.clone().sub(D.hips).applyQuaternion(q));setRoot(c,q,H);resetRest(c);clav(c,{shrug:F.shrug?.45:-.02});c.root.updateMatrixWorld(true);c._S=S;
   for(const s of[1,-1]){const side=sideOf(s);legTo(c,side,H.clone().add(V(-s*.03,-.5,-.32)),V(0,-.3,1),.3);
-    const f=(F.flare??32)*DEG;armTo(c,side,V(s*hx,DIP_Y+.022,DIP_Z),{hd:V(-s*.85,-.3,.45),pn:V(-s*.4,-1,0),pole:V(s*Math.sin(f),.45,-Math.cos(f)).normalize()});}
+    const f=(F.flare??32)*DEG;armTo(c,side,V(s*hx,DIP_Y+.022,DIP_HZ),{hd:V(-s*.85,-.3,.45),pn:V(-s*.4,-1,0),pole:V(s*Math.sin(f),.45,-Math.cos(f)).normalize()});}
   return u;}
 
 // ---- equipment
@@ -124,7 +139,7 @@ function buildCable(g){const P={h:[],cable:[],pul:[],stackTop:[],car:[]};
   box(2.44,.08,.08,M.black,0,2.3,CZ-.05,g);
   P.pulL=i=>{const p=V();P.pul[i].getWorldPosition(p);return g.worldToLocal(p);}; // pulley centre in the station frame
   P.setPulley=(y,i)=>{for(const k of i===undefined?[0,1]:[i]){P.car[k].position.y=y;P.car[k].updateMatrixWorld(true);}};
-  P.rest=()=>{for(let i=0;i<2;i++){const p=V();P.pul[i].getWorldPosition(p);g.worldToLocal(p);P.h[i].position.copy(p).add(V(0,-CROSS_HANG,0));setRod(P.cable[i],p,P.h[i].position);}};
+  P.rest=()=>{for(let i=0;i<2;i++){const p=V();P.pul[i].getWorldPosition(p);g.worldToLocal(p);P.h[i].position.copy(p).add(V(0,-CROSS_HANG,0));P.h[i].rotation.set(0,0,Math.PI/2);setRod(P.cable[i],p,P.h[i].position);}};
   P.tick=()=>{if(!hero)return;for(let i=0;i<2;i++){if(!hero.hold.some(h=>h.obj===P.h[i]))continue;const pw=V();P.pul[i].getWorldPosition(pw);g.worldToLocal(pw);setRod(P.cable[i],pw,P.h[i].position);}};
   P.setPulley(2.02);P.rest();return P;}
 function buildMat(g){const m=box(.75,.012,2.0,M_mat,0,.006,-11.75,g,false);m.receiveShadow=true;m.userData.walkable=true;return {wheel:buildAbWheel(g)};}

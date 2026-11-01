@@ -18,9 +18,9 @@ function seatBody(c,o){setRoot(c,qX(-SEAT_RECLINE+(o.lean||0)),V(0,SEAT_TOP+.1*D
   clav(c,{shrug:o.shrug??.03,protract:o.protract});c.root.updateMatrixWorld(true);
   for(const s of[1,-1])legTo(c,sideOf(s),V(s*.17,.09,SEAT_Z+.46-(o.drop||0)*.5),V(s*.15,.4,1));}
 // split stance between cable towers
-function standBody(c,o){setRoot(c,qX(o.lean||0),V(0,D.hips.y-.04*D.s,CZ));resetRest(c);
+function standBody(c,o){const z=o.z??CZ;setRoot(c,qX(o.lean||0),V(0,D.hips.y-.04*D.s,z));resetRest(c);
   clav(c,{shrug:o.shrug??.03});c.root.updateMatrixWorld(true);
-  legTo(c,'Left',V(.13,D.ankY,CZ+.30),V(.1,.2,1));legTo(c,'Right',V(-.13,D.ankY+.05,CZ-.36),V(-.1,.2,1),.3);}
+  legTo(c,'Left',V(.13,D.ankY,z+.30),V(.1,.2,1));legTo(c,'Right',V(-.13,D.ankY+.05,z-.36),V(-.1,.2,1),.3);}
 // general standing pose: feet planted, hips over the feet (pushed back by the hinge), knees bent by 'drop'
 // o: x,z (between the feet), h (heading), hinge (deg, torso forward), drop (m the hips go down), back (m hips go back),
 //    stance (half the distance between the ankles), toe (deg the feet turn out), feet:[[x,z],[x,z]] (overrides), round (spine flex, deg)

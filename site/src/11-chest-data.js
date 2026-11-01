@@ -26,7 +26,7 @@ const CHEST_SRC={
       hips:{hips:1,btn:'Hips up',tag:'Hips lift off the bench',short:'Hips lift off the bench',wrong:'Your bottom lifts off the bench as you push.',
         now:'Your lower back bends and takes the strain. The lift feels easier than it really is.',later:'Lower-back pain. You overestimate your strength, and in competitions the lift doesn’t count.',
         fix:'Keep your bottom on the bench. Push your feet into the floor.',warn:'Hips off the bench, back arches',warnAt:'hips',meas:'hips',cam:'feetLow'},
-      neck:Object.assign({flare:70,touchZ:-.13},TXT.neck)})},
+      neck:Object.assign({flare:70,touchZ:-.04},TXT.neck,{cam:'sideFlat'})})},
   bbIncline:{name:'Incline bench press',eq:'Barbell',focus:'Upper chest',kind:'press',fam:'bar',calib:'bar',mus:{up:1,low:.62,del:.85,tri:.6},angle:30,
     steps:PRESS_STEPS.map((s,i)=>i===1?['Light touch','below the collarbones']:s),stepText:['Bench at 30°. Lower the bar slowly, about 2 seconds, to the top of your chest. Breathe in.',
       'Let the bar touch just below your collarbones. This is where the upper chest is stretched most.','Press straight up, breathing out. Keep your bottom on the seat.','Arms straight, bar over your shoulders. Start the next rep.'],
@@ -37,7 +37,7 @@ const CHEST_SRC={
       steep:{angle:60,btn:'Bench too steep',tag:'Bench too steep (60°)',short:'Bench set too steep',wrong:'The bench is raised to about 60°, so it turns into a shoulder press.',
         now:'The front of your shoulders does most of the work, and you lift about 15–20% less weight.',later:'Less upper-chest growth for the effort, more strain on the shoulders.',
         fix:'Set the bench to 30–45°. The upper chest works just as hard there.',warn:'Front shoulders take over',warnAt:'shoulder',meas:'angle',cam:'sideFlat',delRed:1,mul:{del:1.4,low:.6,up:.85}},
-      chin:Object.assign({},TXT.neck,{touchZ:-.12,flare:68,btn:'Bar to the chin',tag:'Bar drifts to the chin',short:'Bar comes down to the chin',wrong:'The bar comes down toward the chin and neck instead of the upper chest.',
+      chin:Object.assign({},TXT.neck,{touchZ:-.03,flare:68,cam:'sideFlat',btn:'Bar to the chin',tag:'Bar drifts to the chin',short:'Bar comes down to the chin',wrong:'The bar comes down toward the chin and neck instead of the upper chest.',
         fix:'Lower the bar to just below the collarbones.'})})},
   bbDecline:{name:'Decline bench press',eq:'Barbell',focus:'Lower chest',kind:'press',fam:'bar',calib:'bar',mus:{up:.6,low:1,del:.45,tri:.65},angle:-15,
     steps:PRESS_STEPS.map((s,i)=>i===1?['Light touch','lower breastbone']:s),stepText:['Legs hooked, bench at about −15°. Lower the bar slowly to the bottom of your breastbone.',
@@ -152,7 +152,7 @@ const CHEST_SRC={
     beginner:'3 sets of 6–10 on an assisted dip machine, or slow lowering-only reps.',cam:'three',coach:'side',
     forms:mk(base({}),{
       deep:{deep:1,btn:'Too deep',tag:'Going too deep',short:'Shoulders drop far below the elbows',wrong:'The shoulders drop far below the elbows at the bottom.',
-        now:'The front of the shoulder is stretched hard under your whole body weight.',later:'One of the most common causes of shoulder pain from dips.',fix:'Stop when your upper arms are about level with the floor.',warn:'Front of the shoulder overstretched',warnAt:'shoulder',meas:'dipDepth',cam:'sideFlat',delRed:1,mul:{del:1.4}},
+        now:'The front of the shoulder is stretched hard under your whole body weight.',later:'One of the most common causes of shoulder pain from dips.',fix:'Stop when your upper arms are about level with the floor.',warn:'Front of the shoulder overstretched',warnAt:'shoulder',meas:'dipDepth',cam:'three',delRed:1,mul:{del:1.4}},
       shrug:{shrug:1,btn:'Shoulders shrug up',tag:'Shoulders up to the ears',short:'Shoulders shrug up to the ears',wrong:'The shoulders shrug up toward the ears.',
         now:'The neck and the top of the shoulders take the strain.',later:'Neck and shoulder pain.',fix:'Push your shoulders down, away from your ears, before every rep.',warn:'Shoulders up by the ears',warnAt:'shoulder',meas:'shrug',cam:'front'}})},
 };

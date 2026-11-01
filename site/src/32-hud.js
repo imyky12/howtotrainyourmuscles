@@ -110,3 +110,10 @@ function nextQ(){learn.qi++;if(learn.qi<learn.qs.length){askQ();return;}setForm(
 learnEl.addEventListener('click',e=>{const b=e.target.closest('button');if(!b||!learn)return;
   if(b.dataset.o){answer(b.dataset.o);return;}
   ({back:()=>goStep(Math.max(0,learn.i-1)),next:()=>goStep(Math.min(3,learn.i+1)),exit:exitLearn,nextq:nextQ,again:startQuiz,steps:()=>goStep(0)})[b.dataset.a]?.();});
+
+// ---- the exercise card can be collapsed to a small "i" button (it can cover the left view in the split screen); remembered per viewer
+(()=>{const card=$('#exCard'),b=$('#exHide');
+  const set=m=>{card.classList.toggle('min',m);b.textContent=m?'i':'–';b.title=m?'Show exercise name':'Hide exercise name';b.setAttribute('aria-label',b.title);b.setAttribute('aria-expanded',String(!m));
+    try{localStorage.setItem('muscleHouse.cardMin',m?'1':'0');}catch(e){}};
+  let m=false;try{m=localStorage.getItem('muscleHouse.cardMin')==='1';}catch(e){}set(m);
+  b.addEventListener('click',()=>set(!card.classList.contains('min')));})();

@@ -53,7 +53,9 @@ function coachSpotOf(e){const st=STATIONS[e.station],cs=e.coachSpot;const c=toW(
 function coachTo(e,done){const s=coachSpotOf(e);goTo(coach,s.p,{face:s.h,speed:WALK_SPEED*1.04,done});}
 function walkStatus(t){$('#walk').hidden=!t;$('#walkTxt').textContent=t||'';}
 function goExercise(k){const e=EXS[k];if(!e)return;closePanels();showPlan(false);pending=k;SES.i=Math.max(0,SES.plan?SES.plan.items.findIndex(it=>it[0]===k):0);renderPlanList();
-  const isBar=e.needs==='bar'||e.needs==='ez';const start=()=>{if(isBar)fetchBar(e,()=>approach(e));else if(e.needs)fetchDB(e,()=>approach(e));else approach(e);};
+  // e.prep(e,next): something done empty-handed before fetching the gear (setting a bench's angle)
+  const isBar=e.needs==='bar'||e.needs==='ez';const go=()=>{if(isBar)fetchBar(e,()=>approach(e));else if(e.needs)fetchDB(e,()=>approach(e));else approach(e);};
+  const start=()=>e.prep?e.prep(e,go):go();
   whenFree(start);}
 // ---- the lifter is busy (walking somewhere, carrying gear, getting on or off a machine) and the user asks for something else
 // Empty-handed walking just stops. Anything else finishes cleanly first (on the machine, then off it with the gear put back),
@@ -90,7 +92,7 @@ function matchRepStart(){const F=FORMS.good,T=repTiming(F);const keep=snapshot(h
   for(const t of[0,T.lower+T.touch]){drive(hero,F,t,0);const h=hands();const d=h.reduce((m,p,i)=>Math.max(m,p.distanceTo(cur[i])),0);if(d<bd-1e-4){bd=d;best=t;}}
   applySnap(hero,keep);setPropState(props);hero._m=null;return best;}
 function leaveStation(then){const e=EX;liveStop();showHUD(false);setForm('good');splitOn=false;twin.root.visible=false;clearGlows(MU);setFlow('leaving');
-  const steps=ENTRY[e.entry].leave(ST,e);const up=e.needs==='bar'&&hero.barFr?barUpSteps(ST):[]; // a straight bar goes up onto the shoulders for the walk back
+  const steps=ENTRY[e.entry].leave(ST,e);const up=[];
   const next=()=>{if(!runQueued())then&&then();}; // a later request (made while getting off) wins
   runSeq(hero,ST,[...steps,...up],()=>{
     const P=ST.P;cam.orbit=false;
@@ -108,7 +110,7 @@ function pairFrame(pair){ // canonical frame: person at (0,-12) facing +z, the p
 const DBPICK=tier=>tier===0?{z:-12.0,back:.14,hmin:44,maxDrop:.36,dx:.05}:{z:-11.8,back:.08,hmin:50,maxDrop:.14,dx:.05};
 function pickupPose(c,fr,pair,k){const one=c.dbOne||(EXS[pending]&&EXS[pending].needs==='db1');const hy=fr.slotY,hz=-11.45+.34*pair.tier;
   const o=DBPICK(pair.tier);const b=bendToReach(hy,hz,o);standPose(c,{z:o.z,hinge:b.hinge,drop:b.drop,back:o.back,arms:'none',stance:.14});
-  for(const s of[1,-1]){const sd=sideOf(s);if(one&&s>0){restHandThigh(c,s);continue;}armTo(c,sd,V(s*.2,hy,hz),{hd:V(0,-.55,1),pn:V(0,-1,.25),pole:V(s*.5,.1,-.8),curl:k});}}
+  for(const s of[1,-1]){const sd=sideOf(s);if(one&&s>0){restHandThigh(c,s);continue;}armTo(c,sd,V(s*.2,hy,hz),{hd:V(0,-.55,1),pn:V(0,-1,.25),pole:V(s*.5,.1,-.8),curl:k,grip:V(1,0,0),palm:BAR_GRIP.palm,off:BAR_GRIP.off});}}
 // the free hand rests on the thigh while bending down
 function restHandThigh(c,s){const sd=sideOf(s);const K=wpos(c.bones[sd+'Leg']),H=wpos(c.bones[sd+'UpLeg']);const T=torsoAxes(c);
   armTo(c,sd,H.lerp(K,.55).add(V(s*.02,.06,0)),{hd:V().subVectors(K,H).normalize(),pn:V(0,-1,0),pole:T.L.clone().multiplyScalar(s*.5).addScaledVector(T.F,-.5),curl:.45});}
@@ -119,7 +121,7 @@ function fetchDB(e,then){const pair=pickPair(e);hero.pair=pair;const fr=pairFram
       {d:1.1,pose:c=>pickupPose(c,fr,pair,.1)},
       {d:.5,pose:c=>pickupPose(c,fr,pair,1)},
       {d:.25,pose:c=>pickupPose(c,fr,pair,1)},
-      {call:c=>{const one=c.dbOne;pair.dbs.forEach((d,i)=>{if(one&&i===0)return;scene.attach(d);grab(c,d,i===0?'Left':'Right',{align:'thumb'});});c.dbs=one?[null,pair.dbs[1]]:[pair.dbs[0],pair.dbs[1]];}},
+      {call:c=>{const one=c.dbOne;pair.dbs.forEach((d,i)=>{if(one&&i===0)return;scene.attach(d);grab(c,d,i===0?'Left':'Right',{align:'thumb',palm:BAR_GRIP.palm,off:BAR_GRIP.off});});c.dbs=one?[null,pair.dbs[1]]:[pair.dbs[0],pair.dbs[1]];}},
       {d:1.1,pose:c=>standDB(c,{z:z0})},
       {call:c=>{c.carry=c.dbOne?'db1':'db';}},{walk:[0,-12.35],back:true,land:1,d:.9}],()=>then());}});}
 // the reverse: lower them into their own slot, open the hands, stand up

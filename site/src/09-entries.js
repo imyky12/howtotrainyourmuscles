@@ -73,20 +73,20 @@ function carryWith(d,poseFn,objFn,after){const mid=c=>wpos(c.bones.LeftHand).add
   return {d,pose:c=>{poseFn(c);c._pOff=objFn().position.clone().sub(mid(c));},
     props:c=>{const o=objFn();o.position.copy(toC(c.act_.st,mid(c)).add(c._pOff));o.quaternion.identity();after&&after(c);}};}
 // the bench bar carried by the hands on the way back to the hooks
-function barCarry(P,handsFn,ang,feet,d){return carryWith(d,c=>poseBarHands(c,P,handsFn(),ang,feet),()=>P.bar);}
+function barCarry(P,handsFn,ang,feet,d){return carryWith(d,c=>poseBarHands(c,P,handsFn(c),ang,feet),()=>P.bar);}
 const ENTRY={
   barBench:{pre:[0,-10.45],face:0,
     enter:(st,e)=>{const P=st.P,ang=(e.forms.good.angle||0)*DEG,feet=e.forms.good.feet,gr=e.forms.good.grip??GRIP;return [
-      {walk:[0,-11.1],back:true,d:1.2,soft:1}, // stop short of the bench, then step back to it with the feet apart
+      {walk:[0,-11.1],back:true,d:1.2,land:1}, // stop short of the bench, then step back to it with the feet apart
       {d:.8,anim:settle(c=>standPose(c,{z:-11.3,stance:.27,toe:14}),{step:1,bend:1})},
       {d:.9,pose:c=>benchSit(c,{lean:4,feetX:.27,feetZ:.4}),props:pinFeet(st,BENCH_FEET,{out:.3})},
       {d:1.1,pose:c=>lieRest(c,ang,feet,P)},
       {d:.9,pose:c=>poseBarHands(c,P,rackHandsOf(P,gr),ang,feet)},
       {call:()=>sayFor(e.coachIn||'Lift-off on three. One, two, three.',2.6)},
-      {d:1.2,anim:(c,k)=>{const R=rackHandsOf(P,gr),L=lockHands(ang/DEG,gr);const up=Math.sin(Math.PI*Math.min(1,k*1.6))*.03;poseBarHands(c,P,R.map((h,i)=>h.clone().lerp(L[i],ease(k)).add(V(0,up,0))),ang,feet);}}];},
+      {d:1.2,anim:(c,k)=>{const R=rackHandsOf(P,gr),L=barTop(c,e.forms.good);const up=Math.sin(Math.PI*Math.min(1,k*1.6))*.03;poseBarHands(c,P,R.map((h,i)=>h.clone().lerp(L[i],ease(k)).add(V(0,up,0))),ang,feet);}}];},
     leave:(st,e)=>{const P=st.P,ang=(e.forms.good.angle||0)*DEG,feet=e.forms.good.feet,gr=e.forms.good.grip??GRIP;return [
-      barCarry(P,()=>lockHands(ang/DEG,gr),ang,feet,.7),
-      {d:1.3,anim:(c,k)=>{const R=rackHandsOf(P,gr),L=lockHands(ang/DEG,gr);const kk=ease(k);const h=L.map((p,i)=>p.clone().lerp(R[i],Math.min(1,kk*1.15)).add(V(0,kk<.85?.02*Math.sin(Math.PI*kk/.85):0,0)));poseBarHands(c,P,h,ang,feet);}},
+      barCarry(P,c=>barTop(c,e.forms.good),ang,feet,.7),
+      {d:1.3,anim:(c,k)=>{const R=rackHandsOf(P,gr),L=barTop(c,e.forms.good);const kk=ease(k);const h=L.map((p,i)=>p.clone().lerp(R[i],Math.min(1,kk*1.15)).add(V(0,kk<.85?.02*Math.sin(Math.PI*kk/.85):0,0)));poseBarHands(c,P,h,ang,feet);}},
       {d:.9,pose:c=>{lieRest(c,ang,feet,P);P.bar.position.copy(P.rack);}},
       {d:1.1,pose:c=>benchSit(c,{lean:4,feetX:.27,feetZ:.4})},
       {d:.9,pose:c=>standPose(c,{z:-11.3,stance:.27,toe:14}),props:pinFeet(st,BENCH_FEET,{out:.3})},
@@ -103,10 +103,10 @@ const ENTRY={
       {d:1.1,pose:c=>lieRest(c,ang,'rollers',P)},
       {d:.9,pose:c=>poseBarHands(c,P,rackHandsOf(P,gr),ang,'rollers')},
       {call:()=>sayFor(e.coachIn||'Lift-off on three. One, two, three.',2.6)},
-      {d:1.2,anim:(c,k)=>{const R=rackHandsOf(P,gr),L=lockHands(ang/DEG,gr);const up=Math.sin(Math.PI*Math.min(1,k*1.6))*.03;poseBarHands(c,P,R.map((h,i)=>h.clone().lerp(L[i],ease(k)).add(V(0,up,0))),ang,'rollers');}}];},
+      {d:1.2,anim:(c,k)=>{const R=rackHandsOf(P,gr),L=barTop(c,e.forms.good);const up=Math.sin(Math.PI*Math.min(1,k*1.6))*.03;poseBarHands(c,P,R.map((h,i)=>h.clone().lerp(L[i],ease(k)).add(V(0,up,0))),ang,'rollers');}}];},
     leave:(st,e)=>{const P=st.P,ang=(e.forms.good.angle||0)*DEG,gr=e.forms.good.grip??GRIP;return [
-      barCarry(P,()=>lockHands(ang/DEG,gr),ang,'rollers',.7),
-      {d:1.3,anim:(c,k)=>{const R=rackHandsOf(P,gr),L=lockHands(ang/DEG,gr);const kk=ease(k);const h=L.map((p,i)=>p.clone().lerp(R[i],Math.min(1,kk*1.15)).add(V(0,kk<.85?.02*Math.sin(Math.PI*kk/.85):0,0)));poseBarHands(c,P,h,ang,'rollers');}},
+      barCarry(P,c=>barTop(c,e.forms.good),ang,'rollers',.7),
+      {d:1.3,anim:(c,k)=>{const R=rackHandsOf(P,gr),L=barTop(c,e.forms.good);const kk=ease(k);const h=L.map((p,i)=>p.clone().lerp(R[i],Math.min(1,kk*1.15)).add(V(0,kk<.85?.02*Math.sin(Math.PI*kk/.85):0,0)));poseBarHands(c,P,h,ang,'rollers');}},
       {d:.9,pose:c=>{lieRest(c,ang,'rollers',P);P.bar.position.copy(P.rack);}},
       {d:1.1,pose:c=>legsOut(c)},
       {d:1.3,pose:c=>tuckSit(c)},
@@ -115,7 +115,7 @@ const ENTRY={
       {walk:[.95,DEC_Z],d:1.0}];}},
   dbLie:{pre:[0,-10.45],face:0,
     enter:(st,e)=>{const top=e.fam==='fly'?1:1;return [
-      {walk:[0,-11.1],back:true,d:1.2,soft:1},{call:c=>{c.carry=null;}},
+      {walk:[0,-11.1],back:true,d:1.2,land:1},{call:c=>{c.carry=null;}},
       {d:.8,anim:settle(c=>standDB(c,{z:-11.3,stance:.27,toe:14}),{step:1,bend:1})},
       {d:1.0,pose:c=>benchSitDB(c,{lean:2,feetX:.27,feetZ:.4}),props:pinFeet(st,BENCH_FEET,{out:.3})},
       {call:()=>sayFor('Dumbbells on your knees. Kick them up as you lie back.',3)},
@@ -131,27 +131,27 @@ const ENTRY={
   machine:{pre:[0,-10.8],face:0,
     enter:(st,e)=>[{walk:[0,-11.5],back:true,d:1.2,soft:1},{d:.7,anim:settle(c=>standPose(c,{z:-11.72,stance:.17}),{step:1,bend:1})}, // the last short step back with the feet apart (clear of the seat post)
       {d:1.0,pose:seatRest,props:pinFeet(st,SEAT_FEET,{out:.15})},{d:.8,pose:exP(0,1)},{d:1.0,anim:exFrom(0,1)}],
-    leave:(st,e)=>[{d:.8,pose:exP(0,1)},{d:.7,pose:seatRest},{d:1.0,pose:c=>standPose(c,{z:-11.72,stance:.17}),props:pinFeet(st,SEAT_FEET,{out:.15})},
+    leave:(st,e)=>[...exTo(0,1.3),{d:.7,pose:seatRest},{d:1.0,pose:c=>standPose(c,{z:-11.72,stance:.17}),props:pinFeet(st,SEAT_FEET,{out:.15})},
       {d:.4,pose:c=>standPose(c,{z:-11.72})},{walk:[0,-10.8],d:1.1}]},
   // dip: back in between the bars with the arms held out (clear of the handles), hands over and onto the handles, press up
   dip:{pre:[0,-10.8],face:0,
-    enter:(st,e)=>[{walk:[0,-11.2],back:true,d:1.3,soft:1},
+    enter:(st,e)=>[{walk:[0,-11.2],back:true,d:1.3,land:1},
       {d:.5,anim:settle(c=>standPose(c,{z:-11.2,armOut:.6}))},
       {d:.9,anim:settle(c=>standPose(c,{z:-11.58,armOut:.6}),{step:1,bend:1})},
-      {d:.9,anim:settle(c=>standPose(c,{z:-11.95,armOut:.6}),{step:1,bend:1})},
+      {d:.9,anim:settle(c=>standPose(c,{z:DIP_STAND_Z,armOut:.6}),{step:1,bend:1})},
       {d:.6,anim:settle(dipHandsOver)},
-      {d:.5,anim:settle(c=>{standPose(c,{z:-11.95,arms:'none'});dipHands(c,undefined,DIP_STAND_POLE);})},
+      {d:.5,anim:settle(c=>{standPose(c,{z:DIP_STAND_Z,arms:'none'});dipHands(c,undefined,DIP_STAND_POLE);})},
       {d:.8,anim:settle(exP(1,3))}],
-    leave:(st,e)=>[{d:.9,anim:settle(c=>{standPose(c,{z:-11.95,arms:'none'});dipHands(c,undefined,DIP_STAND_POLE);})},
+    leave:(st,e)=>[{d:.9,anim:settle(c=>{standPose(c,{z:DIP_STAND_Z,arms:'none'});dipHands(c,undefined,DIP_STAND_POLE);})},
       {d:.5,anim:settle(dipHandsOver)},
-      {d:.5,anim:settle(c=>standPose(c,{z:-11.95,armOut:.6}))},
+      {d:.5,anim:settle(c=>standPose(c,{z:DIP_STAND_Z,armOut:.6}))},
       {d:.9,anim:settle(c=>standPose(c,{z:-11.58,armOut:.6}),{step:1,bend:1})},
       {d:.9,anim:settle(c=>standPose(c,{z:-11.2,armOut:.6}),{step:1,bend:1})},
       {d:.4,anim:settle(c=>standPose(c,{z:-11.2}))},
       {walk:[0,-10.8],d:1.1}]},
 };
 // hands on the dip handles; hz = where the hips are (the hands sit on the handles a little in front, sliding to the dip spot)
-function dipHands(c,hz,pole){const hx=D.shx+.06*D.s;const z=hz===undefined?DIP_Z:clamp(hz-.04,DIP_Z,-11.56);
+function dipHands(c,hz,pole){const hx=D.shx+.06*D.s;const z=hz===undefined?DIP_HZ:clamp(hz-.04,DIP_HZ,-11.56);
   for(const s of[1,-1])armTo(c,sideOf(s),V(s*hx,DIP_Y+.022,z),{hd:V(-s*.85,-.3,.45),pn:V(-s*.4,-1,0),pole:pole?V(s*pole[0],pole[1],pole[2]):V(s*.3,0,-1)});}
 const DIP_STAND_POLE=[.75,.1,-.65]; // standing between the bars, hands on them: elbows bent back and out, clear of the handles
 // a few short steps on the spot's floor from hips z0 to z1 (facing canonical h), with the arms placed by arms(c,hipsZ):
@@ -197,7 +197,7 @@ ENTRY.mat={pre:[0,-10.55],face:Math.PI,
     {d:.7,...liftFeet(st,c=>allFours(c,{ext:'Left',tuck:true}),{sides:['Left']})},
     {d:.7,...liftFeet(st,c=>allFours(c,{ext:'Both',tuck:true}),{sides:['Right']})},
     {d:.8,pose:exP(1,3)}];},
-  leave:(st,e)=>{const kz=fourKneeZ(),H=Math.PI;return [{d:.8,pose:c=>allFours(c,{ext:'Both',tuck:true})},
+  leave:(st,e)=>{const kz=fourKneeZ(),H=Math.PI;return [...exTo(1,.8),{d:.8,pose:c=>allFours(c,{ext:'Both',tuck:true})}, // finish the rep to the top (hands stay planted), then down to all fours
     {d:.7,...liftFeet(st,c=>allFours(c,{ext:'Right',tuck:true}),{sides:['Left']})},
     {d:.7,...liftFeet(st,c=>allFours(c,{tuck:true}),{sides:['Right']})},
     {d:1.0,pose:c=>kneelPose(c,{z:kz,tuck:true})},
@@ -229,8 +229,8 @@ function cableAdjust(i,x,face,xLow,from){const side=i===0?'Left':'Right',s=i===0
   const steps=[...(Math.abs(from-xs)>.02?shuffleTo(from,CROSS_Z,xs,CROSS_Z,face,null,1,.7):[]),
   {d:1.1,pose:c=>cableReach(c,P(),i,xs,face,1)},
   ...(xs!==xe?[slide(1.2,xs),{d:.8,anim:settle(c=>cableReach(c,P(),i,xe,face,1),{step:1,bend:1})},slide(y1,xe)]:[slide(y1,xs)]),
-  {d:.8,pose:c=>{const h=handle();crossBody(c,xe,face,h.y+.15);armsHang(c,0,-s);armTo(c,side,h,{hd:V(0,-1,0),pn:V(-s,0,0),pole:V(0,-1,.3)});}},
-  {call:c=>{grab(c,P().h[i],side);}},
+  {d:.8,pose:c=>{const h=handle();crossBody(c,xe,face,h.y+.15);armsHang(c,0,-s);armTo(c,side,h,{hd:V(0,-1,0),pn:V(-s,0,0),pole:V(0,-1,.3),grip:V(1,0,0),...BAR_GRIP});}},
+  {call:c=>{grab(c,P().h[i],side,{align:'knuckleY',palm:BAR_GRIP.palm,off:BAR_GRIP.off});}},
   // stand up with the handle at the side (the cable follows) before turning away
   {d:1.2,pose:c=>{crossBody(c,xe,face,1.3);cableHoldArms(c,i);}}];
   return {steps,xe};}
@@ -241,6 +241,6 @@ ENTRY.cable={pre:[0,-10.6],face:Math.PI,
     ...stepTurns(A.xe,Z,[PI/4,0,-PI/4,-PI/2],hold0,.5),...shuffleTo(A.xe,Z,-X,Z,-PI/2,hold0,4,.6),
     ...B.steps,...stepTurns(B.xe,Z,[-PI/4,0],both),...shuffleTo(B.xe,Z,0,Z,0,both,2,.7),
     {d:1.3,anim:settle(exP(0,1),{step:1,bend:1})},{call:c=>{c.hold=[];}},{d:1.0,anim:exFrom(0,1)}];},
-  leave:(st,e)=>[{d:1.0,pose:exP(0,1)},
+  leave:(st,e)=>[...exTo(0,1.0),
     {d:.8,pose:c=>standPose(c,{z:-11.75}),props:(c,k)=>{const P=st.P;for(let i=0;i<2;i++){const p=V();P.pul[i].getWorldPosition(p);st.g.worldToLocal(p);p.y-=CROSS_HANG;P.h[i].position.lerp(p,k);setRod(P.cable[i],p.add(V(0,CROSS_HANG,0)),P.h[i].position);}}},
     {call:()=>st.P.rest()},{walk:[0,-10.6],d:1.2}]};
