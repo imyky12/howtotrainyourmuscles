@@ -19,11 +19,12 @@ function exerciseTick(dt){const F=FORMS[form];const sdt=dt*speed;
   warnAt=form==='good'||hideHints?null:form;}
 // ---- split view: same station, two takes (the right way and the mistake)
 const camL=new THREE.PerspectiveCamera(45,1,.05,200),camR=new THREE.PerspectiveCamera(45,1,.05,200);
-const sideOpen=()=>!$('#mist').hidden||!$('#learn').hidden;
+const sidePanel=()=>['#mist','#learn','#coachAsk'].map(s=>$(s)).find(el=>!el.hidden)||null;
+const sideOpen=()=>!!sidePanel();
 function splitHalves(){const W=innerWidth,H=innerHeight;
   if(W>760){const w=sideOpen()?W-380:W;return [{x:0,y:0,w:Math.round(w/2),h:H},{x:Math.round(w/2),y:0,w:w-Math.round(w/2),h:H}];}
   // phone: stacked between the exercise card and whatever sits at the bottom
-  const top=Math.round($('#exCard').getBoundingClientRect().bottom+4);const side=sideOpen()?(sideOpen()&&!$('#mist').hidden?$('#mist'):$('#learn')):null;
+  const top=Math.round($('#exCard').getBoundingClientRect().bottom+4);const side=sidePanel();
   const bot=Math.round(Math.min(side?side.getBoundingClientRect().top:H,$('#dock').getBoundingClientRect().top)-4);const h=Math.max(60,Math.round((bot-top)/2));return [{x:0,y:top,w:W,h},{x:0,y:top+h,w:W,h}];}
 // swing the view around the body until a wall no longer cuts the distance short
 function clearView(ctr,dir,d){let best=null,bf=-1;for(const a of[0,25,-25,45,-45,65,-65,90,-90,120,-120]){const v=dir.clone().applyAxisAngle(V(0,1,0),a*DEG);const p=roomRay(ctr,ctr.clone().addScaledVector(v,d));const f=p.distanceTo(ctr);
@@ -73,20 +74,19 @@ function updateLabels(){updateSplitUI();if(flow!=='exercise'||(learn&&learn.mode
     svg+=`<line x1="${a.x}" y1="${a.y}" x2="${x}" y2="${y}"/><circle cx="${a.x}" cy="${a.y}" r="3.5"/>`;});
   for(let i=labs.length;i<3;i++)$('#lb'+i).style.display='none';
   lines.innerHTML=svg;}
-// ---- learn mode: guided steps, then a spot-the-mistake quiz
+// ---- learn mode (guided steps) and quiz mode (spot the mistake): two tools sharing the side card
 let learn=null;const learnEl=$('#learn');
+function learnTools(){setTool('tLearn',!!learn&&learn.mode==='steps');setTool('tQuiz',!!learn&&learn.mode==='quiz');}
 function stepsNow(){const G=FORMS.good,T=[G.lower,G.touch,G.press,G.lock];let t0=0;return T.map((d,i)=>{const s={n:EX.steps[i][0],t:EX.stepText[i],seg:[t0,t0+d],at:t0+d*(i===0?.6:i===2?.45:.5)};t0+=d;return s;});}
 function dots(n,i){return '<div class="dots">'+Array.from({length:n},(_,k)=>`<i class="${k<=i?'on':''}"></i>`).join('')+'</div>';}
-function enterLearn(i=0){if(flow!=='exercise')return;learn={mode:'steps',i,speed};setForm('good');learnEl.hidden=false;setTool('tLearn',true);goStep(i);}
-function exitLearn(){if(!learn)return;speed=learn.speed;learn=null;learnEl.hidden=true;setTool('tLearn',false);setForm('good');setPaused(false);}
-function goStep(i){learn.mode='steps';learn.i=i;learn.seg=null;const S=stepsNow()[i];repT=S.at;rep=1;fatigue=0;lastPhase=-1;setPaused(true);
+function enterLearn(i=0){if(flow!=='exercise')return;learn={mode:'steps',i,speed};setForm('good');learnEl.hidden=false;goStep(i);}
+function enterQuiz(){if(flow!=='exercise')return;learn={mode:'quiz',speed};learnEl.hidden=false;startQuiz();}
+function exitLearn(){if(!learn)return;speed=learn.speed;learn=null;learnEl.hidden=true;learnTools();setForm('good');setPaused(false);}
+function goStep(i){learn.mode='steps';learn.i=i;learn.seg=null;learnTools();const S=stepsNow()[i];repT=S.at;rep=1;fatigue=0;lastPhase=-1;setPaused(true);
   learnEl.innerHTML=`<span class="eyebrow">${EX.name} · step ${i+1} of 4</span>${dots(4,i)}<h3>${i+1} · ${S.n}</h3><p>${S.t}</p>
-   <div class="row"><button class="tg" data-a="play">▶ Play this step</button><button class="tg" data-a="all">▶ Whole rep</button></div>
-   <div class="row"><button class="tg" data-a="back" ${i===0?'disabled':''}>‹ Back</button><button class="tg on" data-a="next">${i<3?'Next ›':'Quiz: spot the mistake ›'}</button><button class="tg" data-a="exit">Done</button></div>`;}
-function playStep(){const S=stepsNow()[learn.i];repT=S.seg[0];learn.seg=S.seg;speed=.5;setPaused(false);}
-function playWhole(){repT=0;learn.seg=[0,repLength(FORMS.good)-.02];speed=1;setPaused(false);}
+   <div class="row"><button class="tg" data-a="back" ${i===0?'disabled':''}>‹ Back</button>${i<3?'<button class="tg on" data-a="next">Next ›</button>':''}<button class="tg${i<3?'':' on'}" data-a="exit">Done</button></div>`;}
 function startQuiz(){const ms=Object.keys(FORMS).filter(k=>k!=='good').sort(()=>Math.random()-.5);learn={...learn,mode:'quiz',qs:ms.slice(0,Math.min(3,ms.length)),qi:0,score:0};askQ();}
-function askQ(){const q=learn.qs[learn.qi];learn.answered=false;setForm(q);setPreset('quiz');setPaused(false);speed=1;
+function askQ(){const q=learn.qs[learn.qi];learn.answered=false;learnTools();setForm(q);setPreset('quiz');setPaused(false);speed=1;
   const others=Object.keys(FORMS).filter(k=>k!=='good'&&k!==q).sort(()=>Math.random()-.5).slice(0,2);
   const opts=[q,...others];if(opts.length<3)opts.push('none');opts.sort(()=>Math.random()-.5);
   learnEl.innerHTML=`<span class="eyebrow">Quiz · question ${learn.qi+1} of ${learn.qs.length}</span>${dots(learn.qs.length,learn.qi)}<h3>What’s wrong with the rep on the right?</h3>
@@ -98,7 +98,7 @@ function answer(o){if(learn.answered)return;learn.answered=true;const q=learn.qs
    <div class="row" style="margin-top:8px"><button class="tg on" data-a="nextq">${last?'See my score ›':'Next question ›'}</button></div>`;}
 function nextQ(){learn.qi++;if(learn.qi<learn.qs.length){askQ();return;}setForm('good');const n=learn.qs.length;
   learnEl.innerHTML=`<span class="eyebrow">Quiz done</span><h3>You spotted ${learn.score} of ${n}</h3><p>${learn.score===n?'Sharp eyes. You know what a good '+EX.name.toLowerCase()+' looks like.':'Open “Spot the mistake” to watch the ones you missed side by side, then try again.'}</p>
-   <div class="row"><button class="tg on" data-a="again">Try again</button><button class="tg" data-a="steps">Steps again</button><button class="tg" data-a="exit">Done</button></div>`;}
+   <div class="row"><button class="tg on" data-a="again">Try again</button><button class="tg" data-a="steps">Learn the steps</button><button class="tg" data-a="exit">Done</button></div>`;}
 learnEl.addEventListener('click',e=>{const b=e.target.closest('button');if(!b||!learn)return;
   if(b.dataset.o){answer(b.dataset.o);return;}
-  ({play:playStep,all:playWhole,back:()=>goStep(Math.max(0,learn.i-1)),next:()=>learn.i<3?goStep(learn.i+1):startQuiz(),exit:exitLearn,nextq:nextQ,again:startQuiz,steps:()=>goStep(0)})[b.dataset.a]?.();});
+  ({back:()=>goStep(Math.max(0,learn.i-1)),next:()=>goStep(Math.min(3,learn.i+1)),exit:exitLearn,nextq:nextQ,again:startQuiz,steps:()=>goStep(0)})[b.dataset.a]?.();});

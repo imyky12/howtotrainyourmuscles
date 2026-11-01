@@ -54,7 +54,20 @@ function coachTo(e,done){const s=coachSpotOf(e);goTo(coach,s.p,{face:s.h,speed:W
 function walkStatus(t){$('#walk').hidden=!t;$('#walkTxt').textContent=t||'';}
 function goExercise(k){const e=EXS[k];if(!e)return;closePanels();showPlan(false);pending=k;SES.i=Math.max(0,SES.plan?SES.plan.items.findIndex(it=>it[0]===k):0);renderPlanList();
   const isBar=e.needs==='bar'||e.needs==='ez';const start=()=>{if(isBar)fetchBar(e,()=>approach(e));else if(e.needs)fetchDB(e,()=>approach(e));else approach(e);};
-  if(flow==='exercise')leaveStation(start);else start();}
+  whenFree(start);}
+// ---- the lifter is busy (walking somewhere, carrying gear, getting on or off a machine) and the user asks for something else
+// Empty-handed walking just stops. Anything else finishes cleanly first (on the machine, then off it with the gear put back),
+// so two activities never fight over the lifter.
+let queuedAct=null;
+function whenFree(fn){if(flow==='exercise'){queuedAct=null;leaveStation(fn);return;}
+  if(flow!=='walking'&&flow!=='entering'&&flow!=='leaving'){queuedAct=null;fn();return;}
+  if(flow==='walking'&&cancelWalk()){queuedAct=null;fn();return;}
+  queuedAct=fn;walkStatus('Finishing this first, then on to what you picked');}
+function cancelWalk(){const a=hero.act_||{};const empty=!hero.carry&&!hero.dbs&&!hero.bar&&!(hero.hold&&hero.hold.length);
+  if(!empty||(a.kind!=='walk'&&a.kind!=='turn'&&a.kind!=='idle'))return false;
+  if(a.kind!=='idle'){hero.act_={kind:'idle'};play(hero,'idle',.4);}
+  pending=null;hero.pair=null;hero.dbOne=false;hero.barFr=null;hero.barGrip=null;walkStatus('');return true;}
+function runQueued(){if(!queuedAct)return false;const f=queuedAct;queuedAct=null;f();return true;}
 function approach(e){setFlow('walking');walkStatus('Off to the '+STATIONS[e.station].name);const pr=preOf(e);
   coachTo(e);goTo(hero,pr.p,{face:pr.face,land:ENTRY[e.entry].land,done:()=>arrive(e)});}
 function arrive(e){EX=e;EXK=e.key;FORMS=e.forms;ST=STATIONS[e.station];form='good';
@@ -68,8 +81,9 @@ function arrive(e){EX=e;EXK=e.key;FORMS=e.forms;ST=STATIONS[e.station];form='goo
 // canonical spot (x, z, heading) the character is standing on right now
 function hereC(c,st){const p=toC(st,c.pos);return {x:p.x,z:p.z,h:angDiff(c.heading,st.rot)};}
 function fitOrbitFromCam(){const d=V().subVectors(cam.pos,cam.center);cam.r=d.length();cam.az=Math.atan2(d.x,d.z);cam.el=Math.asin(clamp(d.y/cam.r,-1,1));}
-function startExercise(){setFlow('exercise');form='good';setForm('good');repT=matchRepStart();rep=1;fatigue=0;showHUD(true);renderExerciseUI();hero._m=null;hero._py=undefined;
-  if(SES.plan)SES.done.add(EXK);}
+function startExercise(){if(queuedAct){const f=queuedAct;queuedAct=null;setFlow('exercise');leaveStation(f);return;} // asked for something else on the way here
+  setFlow('exercise');form='good';setForm('good');repT=matchRepStart();rep=1;fatigue=0;showHUD(true);renderExerciseUI();hero._m=null;hero._py=undefined;
+  if(SES.plan)SES.done.add(EXK);coachExerciseStarted(EXK);}
 // the rep clock starts at whichever end of the rep (top or bottom) the entry left the hands at, so the first frame does not jump
 function matchRepStart(){const F=FORMS.good,T=repTiming(F);const keep=snapshot(hero),props=propState(ST.P);const B=hero.bones;
   const hands=()=>[wpos(B.LeftHand),wpos(B.RightHand),wpos(B.Hips)];const cur=hands();let best=0,bd=1e9;
@@ -77,10 +91,11 @@ function matchRepStart(){const F=FORMS.good,T=repTiming(F);const keep=snapshot(h
   applySnap(hero,keep);setPropState(props);hero._m=null;return best;}
 function leaveStation(then){const e=EX;showHUD(false);setForm('good');splitOn=false;twin.root.visible=false;clearGlows(MU);setFlow('leaving');
   const steps=ENTRY[e.entry].leave(ST,e);const up=e.needs==='bar'&&hero.barFr?barUpSteps(ST):[]; // a straight bar goes up onto the shoulders for the walk back
+  const next=()=>{if(!runQueued())then&&then();}; // a later request (made while getting off) wins
   runSeq(hero,ST,[...steps,...up],()=>{
     const P=ST.P;cam.orbit=false;
-    if(e.needs==='bar'||e.needs==='ez'){scene.attach(hero.bar);P.bar=null;returnBar(()=>{then&&then();});}
-    else if(e.needs){hero.dbs.forEach(d=>d&&scene.attach(d));P.db=null;returnDB(()=>{then&&then();});}else then&&then();});}
+    if(e.needs==='bar'||e.needs==='ez'){scene.attach(hero.bar);P.bar=null;returnBar(next);}
+    else if(e.needs){hero.dbs.forEach(d=>d&&scene.attach(d));P.db=null;returnDB(next);}else next();});}
 
 // ---- dumbbells: take a pair from the rack, carry, put back in the same slot
 function pickPair(e){const want=e.dbSize||'medium';const sizes={light:[.7,.95],medium:[.9,1.2],heavy:[1.15,1.6]}[want];
