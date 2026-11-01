@@ -287,7 +287,7 @@ createServer(async (req, res) => {
     if (!p || p.endsWith(sep) || p.endsWith('/')) p = join(p, 'index.html');
     const file = join(SITE, p);
     if (!file.startsWith(SITE + sep)) return send(res, 403, 'forbidden', 'text/plain');
-    return sendFile(req, res, file);
+    return await sendFile(req, res, file); // (await: a missing file must reach the catch below as a 404, not crash the server)
   } catch (e) {
     if (e.code === 'ENOENT' || e.code === 'EISDIR') return send(res, 404, 'not found', 'text/plain');
     if (!url.pathname.startsWith('/api/')) return send(res, 500, 'server error', 'text/plain');
