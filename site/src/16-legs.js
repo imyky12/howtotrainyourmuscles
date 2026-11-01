@@ -7,8 +7,13 @@ function backBarHands(c,ct){const T=torsoAxes(c);for(const s of[1,-1])armTo(c,si
 function overMidfoot(c,o,pt,mid){let back=o.back||0;for(let i=0;i<3;i++){standPose(c,{...o,back});const p=pt(c);back+=p.z-mid;}return back;}
 const SQ_FOOT=-11.95;
 function squatPose(c,P,k,o={}){const half=o.half?.6:1;const kk=k*half;
-  const hinge=o.goodMorning&&o.rising?lerp(10,68,Math.sin(Math.PI*clamp(o.rising,0,1))*.0+kk):lerp(4,o.goodMorning?66:40,kk);
-  const drop=lerp(.02,.56,kk)*(o.goodMorning&&o.rising?.92:1);
+  let hinge=lerp(4,40,kk),drop=lerp(.02,.56,kk);
+  // good-morning fault, on the way up: the hips shoot up first (most of the way by 60% of the rise) while the chest stays down, so
+  // the torso tips past 60° like a good-morning, and comes up last. Down and at the bottom it is a normal squat. (It used to tip the
+  // torso to 66° all the way down, folding the chest onto the thighs at full depth.)
+  if(o.goodMorning&&o.rising>0){const r=clamp(o.rising,0,1);
+    drop=r<.6?lerp(.56,.17,smooth(r/.6)):lerp(.17,.02,clamp((r-.6)/.3,0,1)); // (evenly, with the torso: the knees stay ~160° instead of snapping straight)
+    hinge=r<.55?lerp(40,64,smooth(r/.55)):lerp(64,4,smooth((r-.55)/.45));}
   const opt={z:SQ_FOOT,hinge,drop,stance:.17*D.s,toe:22,arms:'none',kneeIn:o.kneeIn?o.kneeIn*.6*kk:0,look:hinge*.7};
   overMidfoot(c,opt,c2=>barOnBack(c2),SQ_FOOT+.04);const bar=barOnBack(c);backBarHands(c,bar);if(P&&P.bar){P.bar.position.copy(bar);P.bar.quaternion.identity();}return bar;}
 function poseSquat(c,F,b,u,P){const k=1-clamp(u,0,1);const rising=F.goodMorning&&b.phase===2?b.k:0;
@@ -91,7 +96,7 @@ function fppa(c,side){const B=c.bones,h=wpos(B[side+'UpLeg']),k=wpos(B[side+'Leg
   const t=V().subVectors(k,h),s=V().subVectors(a,k);t.z=0;s.z=0;return Math.acos(clamp(t.normalize().dot(s.normalize()),-1,1))/DEG;}
 Object.assign(MEAS,{
   fppa:{at:'bottom',get:c=>avg2(s=>{const B=c.bones,h=wpos(B[s+'UpLeg']),k=wpos(B[s+'Leg']),a=wpos(B[s+'Foot']);const inward=(s==='Left'?-1:1);return Math.max(0,(k.x-(h.x+a.x)/2)*inward*100);}),fmt:v=>v<3?'knees track over the toes':'knees cave '+Math.round(v)+' cm inward'},
-  torsoBottom:{at:'bottom',get:c=>torsoLean(c),fmt:v=>v<50?'torso '+Math.round(v)+'° at the bottom':'torso tips to '+Math.round(v)+'°'},
+  torsoBottom:{pick:'max',get:c=>torsoLean(c),fmt:v=>v<50?'torso never past '+Math.round(v)+'°':'torso tips to '+Math.round(v)+'° as the hips shoot up'}, // the steepest the torso gets in a rep
   depth:{at:'bottom',get:c=>(wpos(c.bones.Hips).y-.05-wpos(c.bones.LeftLeg).y)*100,fmt:v=>v<=0?'hip crease below the knee':'stops '+Math.round(v)+' cm above parallel'},
   rdlKnee:{at:'bottom',get:c=>avg2(s=>kneeAng(c,s)),fmt:v=>v>=148?'knees stay soft ('+Math.round(v)+'°)':'knees bend to '+Math.round(v)+'°: it became a squat'},
   barThigh:{pick:'max',get:(c,x)=>c._rdl?(x.P.bar.position.z-c._rdl.refZ)*100:0,fmt:v=>v<3?'bar slides down the legs':'bar drifts '+Math.round(v)+' cm off the legs'},
@@ -343,7 +348,7 @@ defEx('squat',{group:'legs',name:'Back squat',eq:'Barbell',part:'Quads & glutes'
   cues:[['Sit between your heels.'],['Below the knee.'],['Drive up, knees out.'],['Stand tall.']],
   beginner:'3 sets of 6–10, starting with the empty 20 kg bar. Set the safety arms at the height of the bar at the bottom.',
   forms:mk({lower:2.0,touch:.25,press:1.1,lock:.8,prof:'smooth'},{
-    kneeIn:MS('Knees cave in','Knees drift inward on the way up','Both knees drift about 10 cm inward at the bottom.','The adductors take over and the glutes aren’t driving.','Repeated caving under load is linked with knee pain.','Push the knees out over the toes.',{kneeIn:1,meas:'fppa',warn:'Knees cave',warnAt:'knee',cam:'front',strain:['adduct']}),
+    kneeIn:MS('Knees cave in','Knees drift inward on the way up','Both knees drift about 6 cm inward at the bottom, almost touching.','The adductors take over and the glutes aren’t driving.','Repeated caving under load is linked with knee pain.','Push the knees out over the toes.',{kneeIn:.75,meas:'fppa', /* .75: the knees end ~2 cm apart (at 1 one sank 7 cm into the other) */warn:'Knees cave',warnAt:'knee',cam:'front',strain:['adduct']}),
     goodMorning:MS('Good-morning squat','Hips shoot up, chest drops','The hips rise first and the torso tips forward past 60°.','The load moves from the quads to the lower back.','The lower back limits your squat; the quads get less work.','Chest up; knees and hips rise together.',{goodMorning:1,meas:'torsoBottom',warn:'Chest drops',warnAt:'lowback',cam:'sideHigh',strain:['erect']}),
     half:MS('Half squat','Stops well above parallel','The squat stops with the thighs well above parallel.','The glutes and adductors miss their hardest range.','Half squats grew the glutes about a third as much in one study.','Sit lower: hips below the knees.',{half:1,meas:'depth',warn:'Too shallow',warnAt:'hips',cam:'sideHigh'})})});
 defEx('rdl',{group:'legs',name:'Romanian deadlift',eq:'Barbell',part:'Hamstrings',station:'platform',entry:'rdlBar',kind:'hinge',pose:poseRDL,
