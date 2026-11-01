@@ -14,13 +14,17 @@ function squatPose(c,P,k,o={}){const half=o.half?.6:1;const kk=k*half;
 function poseSquat(c,F,b,u,P){const k=1-clamp(u,0,1);const rising=F.goodMorning&&b.phase===2?b.k:0;
   squatPose(c,P,smooth(k),{half:F.half,kneeIn:F.kneeIn,goodMorning:F.goodMorning,rising});c._kneeIn=F.kneeIn;return u;}
 // Romanian deadlift: knees soft and fixed, hips go back, bar slides down the thighs
-function rdlPose(c,P,k,o={}){const th=lerp(0,o.squat?55:74,k);const drop=lerp(.03,o.squat?.32:.145,k);
-  standPose(c,{z:PLAT.barZ-.06,hinge:th,drop,back:lerp(.02,o.squat?.2:.3,k),round:o.round?50*k:0,stance:.13*D.s,toe:4,arms:'none',look:th*.6});
+// (the feet stand where the deadlift's do, so picking the bar up from the floor flows straight into the RDL; barFixTable keeps the
+// bar's surface in front of the real legs and shorts, see 14-back.js)
+function rdlPose(c,P,k,o={}){const base=q=>rdlBase(c,q,o),T=barFixTable(c,'rdl'+(o.round?'r':'')+(o.squat?'s':''),base);
+  const r=base(k),[dy,dz]=barFixAt(T,k),bar=r.bar.add(V(0,dy,dz));c._rdl={refZ:bar.z};if(o.drift)bar.z+=.09*k;
+  barHands(c,bar,.25*D.s,{hd:V(0,-1,-.1),pn:V(0,0,-1),pole:V(.25,.2,-1)});if(P&&P.bar){P.bar.position.copy(bar);P.bar.quaternion.identity();}return bar;}
+function rdlBase(c,k,o={}){const th=lerp(0,o.squat?55:74,k);const drop=lerp(.03,o.squat?.32:.145,k);
+  standPose(c,{z:PLAT.barZ-DL_BACK-.02,hinge:th,drop,back:lerp(.02,o.squat?.2:.3,k),round:o.round?50*k:0,stance:.13*D.s,toe:4,arms:'none',look:th*.6});
   // the bar rides down the front of the thighs and shins: find the point on the legs a straight arm's length from the shoulders
   const [a,b2]=shoulders(c);const S=a.add(b2).multiplyScalar(.5);const B=c.bones;const H=wpos(B.LeftUpLeg),K=wpos(B.LeftLeg),A=wpos(B.LeftFoot);const L=ARM_HANG();let bar=null;
   for(let i=0;i<=40&&!bar;i++){const t=i/40;const p=t<.5?H.clone().lerp(K,t*2):K.clone().lerp(A,(t-.5)*2);p.x=0;p.z+=(t<.5?.085:.06);if(p.distanceTo(S)>=L)bar=p;}
-  if(!bar)bar=V(0,S.y-L,S.z);if(o.drift)bar.z+=.09*k;
-  barHands(c,bar,.25*D.s,{hd:V(0,-1,-.1),pn:V(0,0,-1),pole:V(.25,.2,-1)});if(P&&P.bar){P.bar.position.copy(bar);P.bar.quaternion.identity();}return bar;}
+  if(!bar)bar=V(0,S.y-L,S.z);return {S,bar};}
 function poseRDL(c,F,b,u,P){rdlPose(c,P,smooth(1-clamp(u,0,1)),{round:F.round,squat:F.squat,drift:F.drift});return u;}
 // Bulgarian split squat: rear foot laces-down on the bench, front foot about a leg length ahead
 function poseBulgarian(c,F,b,u,P){const k=smooth(1-clamp(u,0,1));const fz=F.close?-10.92:-10.58;
@@ -90,7 +94,7 @@ Object.assign(MEAS,{
   torsoBottom:{at:'bottom',get:c=>torsoLean(c),fmt:v=>v<50?'torso '+Math.round(v)+'° at the bottom':'torso tips to '+Math.round(v)+'°'},
   depth:{at:'bottom',get:c=>(wpos(c.bones.Hips).y-.05-wpos(c.bones.LeftLeg).y)*100,fmt:v=>v<=0?'hip crease below the knee':'stops '+Math.round(v)+' cm above parallel'},
   rdlKnee:{at:'bottom',get:c=>avg2(s=>kneeAng(c,s)),fmt:v=>v>=148?'knees stay soft ('+Math.round(v)+'°)':'knees bend to '+Math.round(v)+'°: it became a squat'},
-  barThigh:{pick:'max',get:(c,x)=>{const B=c.bones,H=wpos(B.LeftUpLeg),K=wpos(B.LeftLeg),A=wpos(B.LeftFoot);const y=x.P.bar.position.y;const p=y>K.y?H.clone().lerp(K,clamp((H.y-y)/(H.y-K.y),0,1)):K.clone().lerp(A,clamp((K.y-y)/(K.y-A.y),0,1));return (x.P.bar.position.z-p.z-(y>K.y?.085:.06))*100;},fmt:v=>v<3?'bar slides down the legs':'bar drifts '+Math.round(v)+' cm off the legs'},
+  barThigh:{pick:'max',get:(c,x)=>c._rdl?(x.P.bar.position.z-c._rdl.refZ)*100:0,fmt:v=>v<3?'bar slides down the legs':'bar drifts '+Math.round(v)+' cm off the legs'},
   frontKnee:{at:'bottom',get:c=>{const B=c.bones,h=wpos(B.LeftUpLeg),k=wpos(B.LeftLeg),a=wpos(B.LeftFoot);return Math.max(0,((h.x+a.x)/2-k.x)*100);},fmt:v=>v<3?'front knee over the toes':'front knee caves '+Math.round(v)+' cm in'},
   heel:{at:'bottom',get:c=>Math.max(0,(wpos(c.bones.LeftFoot).y-D.ankY)*100),fmt:v=>v<1.5?'front heel stays down':'front heel lifts '+Math.round(v)+' cm'},
   pelvisYaw:{at:'bottom',get:c=>{const L=pelvisAxes(c).L;return Math.abs(Math.atan2(L.z,L.x)/DEG);},fmt:v=>v<10?'hips square to the front':'hips twist '+Math.round(v)+'°'},
