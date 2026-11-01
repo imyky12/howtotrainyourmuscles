@@ -14,7 +14,9 @@ function squatPose(c,P,k,o={}){const half=o.half?.6:1;const kk=k*half;
   if(o.goodMorning&&o.rising>0){const r=clamp(o.rising,0,1);
     drop=r<.6?lerp(.56,.17,smooth(r/.6)):lerp(.17,.02,clamp((r-.6)/.3,0,1)); // (evenly, with the torso: the knees stay ~160° instead of snapping straight)
     hinge=r<.55?lerp(40,64,smooth(r/.55)):lerp(64,4,smooth((r-.55)/.45));}
-  const opt={z:SQ_FOOT,hinge,drop,stance:.17*D.s,toe:22,arms:'none',kneeIn:o.kneeIn?o.kneeIn*.6*kk:0,look:hinge*.7};
+  // Check my form: the camera's reading of your own torso lean and knee track (kneeAbs: the knee pull itself, + in, − out)
+  if(o.hinge!==undefined)hinge=o.hinge;
+  const opt={z:SQ_FOOT,hinge,drop,stance:.17*D.s,toe:22,arms:'none',kneeIn:o.kneeAbs??(o.kneeIn?o.kneeIn*.6*kk:0),look:hinge*.7};
   overMidfoot(c,opt,c2=>barOnBack(c2),SQ_FOOT+.04);const bar=barOnBack(c);backBarHands(c,bar);if(P&&P.bar){P.bar.position.copy(bar);P.bar.quaternion.identity();}return bar;}
 function poseSquat(c,F,b,u,P){const k=1-clamp(u,0,1);const rising=F.goodMorning&&b.phase===2?b.k:0;
   squatPose(c,P,smooth(k),{half:F.half,kneeIn:F.kneeIn,goodMorning:F.goodMorning,rising});c._kneeIn=F.kneeIn;return u;}

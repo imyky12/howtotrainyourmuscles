@@ -142,6 +142,41 @@ button:focus-visible{outline:2px solid var(--help);outline-offset:2px}
 .opts button{text-align:left;font:600 .92rem var(--body);background:rgba(243,241,234,.05);border:1px solid var(--line);border-radius:12px;padding:10px 12px}
 .opts button.right{border-color:var(--ok);background:rgba(47,209,138,.16)}.opts button.wrong{border-color:var(--main);background:rgba(255,59,42,.16)}
 .verdict{padding:10px 12px;border-radius:12px;background:rgba(243,241,234,.05);display:grid;gap:4px;font-size:.9rem}
+/* check my form: the camera panel */
+#tools button.hot i{color:var(--main);animation:camPulse 1.6s ease-in-out infinite}
+#tools button.hot[aria-pressed="true"] i{animation:none}
+#tools button.hot{background:rgba(255,59,42,.16);box-shadow:inset 0 0 0 1px rgba(255,59,42,.55)}
+#tools button.hot[aria-pressed="true"]{background:var(--ink);box-shadow:none}
+#camNudge{position:absolute;right:max(16px,env(safe-area-inset-right,0px));top:calc(112px + env(safe-area-inset-top,0px));display:flex;gap:8px;align-items:center;padding:11px 16px;border-radius:999px;font:700 .9rem var(--body);border:1px solid rgba(255,59,42,.6)}
+#camNudge i{font-style:normal;color:var(--main);animation:camPulse 1.6s ease-in-out infinite}
+#camNudge[hidden]{display:none}
+@keyframes camPulse{50%{opacity:.35}}
+#tools button.hot[aria-pressed="true"] i{color:#c4271a}
+#live .cam{position:relative;border-radius:12px;overflow:hidden;background:#000;aspect-ratio:4/3;width:100%;justify-self:center}
+#live video,#live canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:fill}
+#live .mirror{transform:scaleX(-1)}
+#live .cmsg{position:absolute;left:8px;right:8px;bottom:8px;padding:6px 10px;border-radius:10px;background:rgba(10,12,15,.8);font:600 .82rem/1.3 var(--body);text-align:center}
+#live .cmsg[hidden]{display:none}
+#live .flash{position:absolute;left:50%;top:12px;transform:translateX(-50%);padding:6px 16px;border-radius:14px;font:900 2rem/1.1 var(--display);text-transform:uppercase;white-space:nowrap;color:#fff}
+#live .flash.ok{background:#1b9a63}#live .flash.bad{background:var(--main)}#live .flash[hidden]{display:none}
+.lsetup{margin:0;padding-left:20px;display:grid;gap:4px;font-size:.9rem}
+.lmet{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.lmet div{border:1px solid var(--line);border-radius:10px;padding:6px 8px;display:grid;gap:1px;min-width:0}
+.lmet span{font:600 .62rem var(--body);letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.lmet b{font:700 .88rem var(--body);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lmet .ok{border-color:rgba(47,209,138,.45)}.lmet .ok b{color:#9df0c8}.lmet .bad{border-color:rgba(255,59,42,.6)}.lmet .bad b{color:#ffb4ab}
+.lreps{display:flex;flex-wrap:wrap;gap:5px;margin:0;padding:0;list-style:none}
+.lreps li{font:700 .74rem var(--body);padding:4px 9px;border-radius:999px;background:rgba(47,209,138,.16);color:#9df0c8}
+.lreps li.bad{background:rgba(255,59,42,.18);color:#ffb4ab}.lreps li.none{background:none;color:var(--muted);font-weight:500;padding-left:0}
+#live .a{font-size:.95rem;line-height:1.45;margin:0}#live .a.muted{color:var(--muted)}
+#live .focus{margin:0;font-size:.88rem;color:#9df0c8}#live .speed{margin:0;font-size:.72rem;color:var(--muted)}
+#live .warn{margin:0;color:#ffb4ab;font-size:.88rem}
+#live .priv{margin:0;font-size:.74rem;color:var(--muted)}
+.stag.you{background:#2b3138}
+/* the close button on the open card */
+#sideX{position:fixed;left:0;top:0;z-index:21;width:40px;height:40px;border-radius:50%;display:grid;place-items:center;padding:0;border:1px solid var(--line)}
+#sideX svg{width:18px;height:18px;stroke:currentColor;stroke-width:2.4;fill:none;stroke-linecap:round}
+#sideX[hidden]{display:none}
 /* split view */
 #split{position:fixed;inset:0;z-index:12;pointer-events:none}
 #splitDiv{position:absolute;background:rgba(243,241,234,.55)}
@@ -255,13 +290,15 @@ input{font:inherit;color:inherit;user-select:text;-webkit-user-select:text}
   #nextBtn{position:absolute;right:max(16px,env(safe-area-inset-right,0px));bottom:calc(10px + env(safe-area-inset-bottom,0px));height:46px;width:88px;padding:0 10px;justify-content:center;font-size:.9rem}
   .nxn{display:none}
   .ml{font-size:.72rem;padding:4px 8px}.ml small{display:none}
-  .stag{font-size:.74rem;padding:5px 9px}.stag small{font-size:.68rem}
+  .stag{font-size:.74rem;padding:5px 9px;max-width:calc(100vw - 24px)}.stag small{font-size:.68rem}
   /* panels are bottom sheets that leave room for the scene */
   .side{left:0;right:0;width:auto;top:auto;bottom:0;max-height:46%;border-radius:18px 18px 0 0;padding:14px max(16px,env(safe-area-inset-right,0px)) calc(14px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));gap:10px}
   .side>.eyebrow{display:none}.side h3{font-size:1.2rem}
   .mlist{display:flex;overflow-x:auto;gap:6px;scrollbar-width:none;margin:0 -2px}
   .mlist button{flex:0 0 auto;max-width:70%;padding:9px 12px}.mlist button span{display:none}
   .mi p{font-size:.86rem}
+  #camNudge{top:auto;right:auto;left:50%;transform:translateX(-50%);bottom:calc(112px + env(safe-area-inset-bottom,0px));white-space:nowrap;font-size:.86rem}
+  #live .cam{max-width:calc(22vh * var(--ar,1.333))}#live .priv{display:none}
   #plan{left:0;right:0;width:auto;top:auto;bottom:0;max-height:78%;border-radius:18px 18px 0 0;padding:16px max(16px,env(safe-area-inset-right,0px)) calc(16px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));gap:12px}
   #plan h2{font-size:1.5rem}
   #plan{grid-template-columns:minmax(0,1fr)}#plan .tabs{width:auto}
@@ -274,7 +311,7 @@ input{font:inherit;color:inherit;user-select:text;-webkit-user-select:text}
   .brand{font-size:1rem}
 }
 
-@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
 
 <canvas id="gl" aria-label="A 3D gym where a person trains"></canvas>
@@ -337,6 +374,7 @@ input{font:inherit;color:inherit;user-select:text;-webkit-user-select:text}
     <button id="tMistake" aria-pressed="false"><i>✕</i>Mistakes</button>
     <button id="tLearn" aria-pressed="false"><i>?</i>Learn</button>
     <button id="tQuiz" aria-pressed="false"><i>◎</i>Quiz</button>
+    <button id="tCam" class="hot" aria-pressed="false" hidden><i>◉</i><span>Check<span class="nxn"> my</span> form</span></button>
     <button id="tCoach" aria-pressed="false" hidden><i>✦</i>Ask coach</button>
   </nav>
   <div id="steps" class="glass"></div>
@@ -344,6 +382,16 @@ input{font:inherit;color:inherit;user-select:text;-webkit-user-select:text}
   <button class="btn" id="nextBtn"></button>
   <aside id="mist" class="side glass" hidden aria-live="polite"></aside>
   <aside id="learn" class="side glass" hidden aria-live="polite"></aside>
+  <button id="camNudge" class="glass" hidden></button>
+  <aside id="live" class="side glass" hidden aria-label="Check my form">
+    <span class="eyebrow" id="lvEye">Check my form</span>
+    <div id="lvBody"></div>
+    <div class="cam" id="lvCam" hidden><video id="lvVid" playsinline muted></video><canvas id="lvCan"></canvas><div class="cmsg" id="lvMsg" role="status" hidden></div><div class="flash" id="lvFlash" hidden aria-hidden="true"></div></div>
+    <div id="lvStats" hidden></div>
+    <div class="row" id="lvRow"></div>
+    <p class="priv" id="lvPriv">Runs on this device. The video never leaves your browser; only the rep numbers go to the coach.</p>
+    <input type="file" id="lvFile" accept="video/*" hidden>
+  </aside>
   <aside id="coachAsk" class="side glass" hidden aria-live="polite">
     <div id="caTop"><span class="eyebrow">Ask Coach Rana</span><button class="tg" id="caVoice" aria-pressed="true">Voice on</button></div>
     <div id="caLog"></div>
@@ -352,6 +400,7 @@ input{font:inherit;color:inherit;user-select:text;-webkit-user-select:text}
   </aside>
 </div>
 
+<button id="sideX" class="glass" hidden aria-label="Close"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
 <div id="done" class="glass" hidden></div>
 
 <button id="ring" class="glass" hidden aria-expanded="false" aria-controls="ringPanel"><svg viewBox="0 0 64 64" aria-hidden="true"><circle class="bg" cx="32" cy="32" r="26"/><circle class="fg" cx="32" cy="32" r="26"/></svg><span class="txt"><span class="pc">0%</span><span class="of">0/0</span></span></button>
