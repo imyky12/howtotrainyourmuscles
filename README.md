@@ -25,6 +25,17 @@ Without a key (or with any plain static server, e.g. `cd site && python3 -m http
 - **Memory:** sessions and what you told the coach stay in the browser (localStorage); the coach greets you with them and plans around them. "Coach’s memory" shows and forgets it.
 - **Code:** `server.mjs` (keys, prompts, schemas; no dependencies), `site/src/33-coach-ai.js` (UI, voice, memory).
 
+## Check my form (camera)
+
+At the back squat, "Check my form" watches you squat through the camera, made for a phone propped up 2–3 m away (a video file works too).
+
+- MediaPipe Pose Landmarker (full model, loaded from jsDelivr/Google on first use) runs in the browser; the video never leaves the device.
+- Stand tall for half a second to calibrate, then squat. Every rep is counted and graded out loud with the exercise's own mistakes: half squat (depth), knees caving in, hips shooting up. The lifter in the gym copies your squat live, next to the right way keeping your rhythm.
+- Set it up at hip height, turned about 45°. Facing the camera, knees are judged; side-on, depth and chest. Depth is read from the picture (height over standing thigh length), the chest angle from the model's 3D points.
+- End of the set: Cerebras turns the rep numbers into two spoken lines and a cue for the next set (`/api/form`), and a note goes to the coach's memory. "Show me the fix" opens your most common mistake next to the right way.
+- The camera needs https (or localhost): to try it on a phone, serve the site over https.
+- **Code:** `site/src/35-formcheck.js`. Test hooks: `window.__live` (feed body points without a camera).
+
 ## Change it
 
 The code is in `site/src/*.js`. `site/build.sh` joins them, in file-name order, into `site/app.js`. Run it after every change.
@@ -39,6 +50,7 @@ The code is in `site/src/*.js`. `site/build.sh` joins them, in file-name order, 
 | `10`–`19b` | the exercises, group by group |
 | `20`–`21` | where every machine stands |
 | `30`–`32` | story flow, camera, plan and exercise screens |
+| `33`–`35` | AI coach, progress ring, Check my form (camera) |
 | `40-main.js` | the loop and test helpers |
 
 ## Tests

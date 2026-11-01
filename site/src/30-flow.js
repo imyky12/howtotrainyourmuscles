@@ -89,7 +89,7 @@ function matchRepStart(){const F=FORMS.good,T=repTiming(F);const keep=snapshot(h
   const hands=()=>[wpos(B.LeftHand),wpos(B.RightHand),wpos(B.Hips)];const cur=hands();let best=0,bd=1e9;
   for(const t of[0,T.lower+T.touch]){drive(hero,F,t,0);const h=hands();const d=h.reduce((m,p,i)=>Math.max(m,p.distanceTo(cur[i])),0);if(d<bd-1e-4){bd=d;best=t;}}
   applySnap(hero,keep);setPropState(props);hero._m=null;return best;}
-function leaveStation(then){const e=EX;showHUD(false);setForm('good');splitOn=false;twin.root.visible=false;clearGlows(MU);setFlow('leaving');
+function leaveStation(then){const e=EX;liveStop();showHUD(false);setForm('good');splitOn=false;twin.root.visible=false;clearGlows(MU);setFlow('leaving');
   const steps=ENTRY[e.entry].leave(ST,e);const up=e.needs==='bar'&&hero.barFr?barUpSteps(ST):[]; // a straight bar goes up onto the shoulders for the walk back
   const next=()=>{if(!runQueued())then&&then();}; // a later request (made while getting off) wins
   runSeq(hero,ST,[...steps,...up],()=>{

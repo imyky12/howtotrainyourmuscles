@@ -1,7 +1,8 @@
 
 // ---------------------------------------------------------------- the exercise loop, split view, labels, learn mode
 let holdT=0,splitOn=false,lastPhase=-1,cueIdx=0,warnAt=null,heroProps=null,twinProps=null;
-function exerciseTick(dt){const F=FORMS[form];const sdt=dt*speed;
+function exerciseTick(dt){if(LIVE.on){liveTick();return;} // the camera drives the lifter (35-formcheck.js)
+  const F=FORMS[form];const sdt=dt*speed;
   repT+=sdt;const L=repLength();if(repT>=L){repT-=L;rep++;fatigue=Math.min(6,fatigue+1);if(rep>10){rep=1;fatigue=0;}}
   if(learn&&learn.seg&&repT>=learn.seg[1]-.01){repT=learn.seg[1]-.012;learn.seg=null;speed=learn.speed;setPaused(true);}
   if(EX.hold){holdT=(holdT||0)+sdt;$('#rep').textContent='Hold '+EX.hold+' · '+Math.floor(holdT)+' s';}else $('#rep').textContent='Rep '+rep+' of 10';
@@ -19,7 +20,7 @@ function exerciseTick(dt){const F=FORMS[form];const sdt=dt*speed;
   warnAt=form==='good'||hideHints?null:form;}
 // ---- split view: same station, two takes (the right way and the mistake)
 const camL=new THREE.PerspectiveCamera(45,1,.05,200),camR=new THREE.PerspectiveCamera(45,1,.05,200);
-const sidePanel=()=>['#mist','#learn','#coachAsk'].map(s=>$(s)).find(el=>!el.hidden)||null;
+const sidePanel=()=>['#mist','#learn','#coachAsk','#live'].map(s=>$(s)).find(el=>!el.hidden)||null;
 const sideOpen=()=>!!sidePanel();
 function splitHalves(){const W=innerWidth,H=innerHeight;
   if(W>760){const w=sideOpen()?W-380:W;return [{x:0,y:0,w:Math.round(w/2),h:H},{x:Math.round(w/2),y:0,w:w-Math.round(w/2),h:H}];}
@@ -51,6 +52,7 @@ function updateSplitUI(){const el=$('#split');const on=splitOn&&flow==='exercise
   const dv=$('#splitDiv');if(side)Object.assign(dv.style,{left:(b.x-1)+'px',top:'0px',width:'2px',height:a.h+'px'});else Object.assign(dv.style,{left:'0px',top:(b.y-1)+'px',width:a.w+'px',height:'2px'});
   const tL=$('#tagL'),tR=$('#tagR');const F=FORMS[form];const hide=learn&&learn.mode==='quiz'&&!learn.answered;
   const ty=side?Math.round($('#exCard').getBoundingClientRect().bottom+10):0;Object.assign(tL.style,{left:(a.x+12)+'px',top:(side?ty:a.y+8)+'px'});Object.assign(tR.style,{left:(b.x+12)+'px',top:(side?ty:b.y+8)+'px'});
+  if(LIVE.on){liveTags(tL,tR);return;}tR.className='stag bad';
   tL.innerHTML='✓ Right way<small>'+measText(twin,F.meas)+'</small>';tR.innerHTML=hide?'? Spot it':'✕ '+F.tag+'<small>'+measText(hero,F.meas)+'</small>';}
 // ---- labels on the body
 function warnPoint(c,at){const B=c.bones,ven=venOf(c);
@@ -59,10 +61,16 @@ function warnPoint(c,at){const B=c.bones,ven=venOf(c);
 const lines=$('#lines');
 function anchorScreen(p,c=camera,r){const v=p.clone().project(c);if(!r)r={x:0,y:0,w:innerWidth,h:innerHeight};return {x:r.x+(v.x*.5+.5)*r.w,y:r.y+(-v.y*.5+.5)*r.h,ok:v.z<1&&Math.abs(v.x)<1.1&&Math.abs(v.y)<1.1};}
 function hideLabels(){['lb0','lb1','lb2','lbWarn'].forEach(id=>$('#'+id).style.display='none');lines.innerHTML='';}
-function updateLabels(){updateSplitUI();if(flow!=='exercise'||(learn&&learn.mode==='quiz'&&!learn.answered&&!splitOn&&false)){hideLabels();return;}
+// one close button for whichever card is open (Mistakes, Learn, Quiz, Ask coach, Check my form): on phones the cards are bottom
+// sheets over the tools, and without it there was no way back. It sits on the card's top edge, so it never covers the card's text.
+function placeSideX(){const x=$('#sideX'),p=flow==='exercise'?sidePanel():null;x.hidden=!p;if(!p)return;const r=p.getBoundingClientRect();
+  x.style.transform=`translate(${Math.round(r.right-(innerWidth<=760?52:30))}px,${Math.round(r.top-(innerWidth<=760?22:14))}px)`;}
+$('#sideX').addEventListener('click',()=>closePanels());
+function updateLabels(){updateSplitUI();placeSideX();if(flow!=='exercise'||(learn&&learn.mode==='quiz'&&!learn.answered&&!splitOn&&false)){hideLabels();return;}
   let svg='';const F=FORMS[form];const sm=innerWidth<760?.55:1;
   if(splitOn){['lb0','lb1','lb2'].forEach(id=>$('#'+id).style.display='none');const el=$('#lbWarn');if(!warnAt){el.style.display='none';lines.innerHTML='';return;}
-    const h=placeSplitCams()[1];const a=anchorScreen(warnPoint(hero,F.warnAt),camR,h);el.textContent=F.warn;el.style.display='flex';
+    // warnAt: the mistake on show (with the camera: the one it just saw)
+    const W=FORMS[warnAt],h=placeSplitCams()[1];const a=anchorScreen(warnPoint(hero,W.warnAt),camR,h);el.textContent=W.warn;el.style.display='flex';
     const hw=el.offsetWidth/2+8;const x=clamp(a.x-Math.min(110,h.w*.3),h.x+hw,h.x+h.w-hw),y=clamp(a.y+(h.y===0?70:36),h.y+16,h.y+h.h-16);el.style.transform=`translate(${x}px,${y}px) translate(-50%,-50%)`;
     lines.innerHTML=`<line x1="${a.x}" y1="${a.y}" x2="${x}" y2="${y}"/><circle cx="${a.x}" cy="${a.y}" r="3.5"/>`;return;}
   $('#lbWarn').style.display='none';

@@ -109,8 +109,8 @@ async function boot(){try{const G={};for(const n of['lifter','coach','member']){
     hero.pos.copy(HERO_START);hero.heading=0;place(hero);play(hero,'idle',0);hero.act_={kind:'idle'};
     coach.pos.set(2.2,0,-15.2);coach.heading=Math.PI;place(coach);play(coach,'idle',0);coach.act_={kind:'idle'};
     renderChips();
-    $('#credit').textContent='People made with MakeHuman (CC0); 3D clothing by Elvaerwyn, Mindfront and punkduck (CC-BY 4.0); walking and idle motion capture from the 100STYLE dataset by Mason, Starke and Komura (CC BY 4.0).';
-    $('#go').disabled=false;$('#go').textContent='Walk me in →';
+    $('#credit').textContent='People made with MakeHuman (CC0); 3D clothing by Elvaerwyn, Mindfront and punkduck (CC-BY 4.0); walking and idle motion capture from the 100STYLE dataset by Mason, Starke and Komura (CC BY 4.0); camera form check by MediaPipe Pose Landmarker, Google (Apache 2.0).';
+    $('#go').disabled=false;$('#go').textContent=LV_DEEP?'Check my '+EXS[LV_DEEP].name.toLowerCase()+' →':'Walk me in →';
     landingCam();cam.pos.copy(cam.tPos);cam.look.copy(cam.tLook);
     window.__ready=true;}catch(e){console.error(e);$('#go').textContent='The gym didn’t load. Reload the page';}}
 if(!/[?&]paint/.test(location.search))boot();
@@ -121,6 +121,7 @@ function loop(){requestAnimationFrame(loop);const dt=Math.min(.05,clock.getDelta
   if(splitOn&&flow==='exercise')renderSplit();else{showCeil(camera);composer.render();}}
 loop();
 window.__advance=sec=>{const n=Math.round(sec*30);for(let i=0;i<n;i++)update(1/30);window.__dirty=true;};
+window.__renderNow=()=>{if(splitOn&&flow==='exercise')renderSplit();else{showCeil(camera);composer.render();}}; // test helper: draw now (background tabs get no animation frames)
 window.__api={D,get flow(){return flow},get state(){return {flow,EXK,form,hero:hero&&{p:hero.pos.toArray(),act:hero.act_&&hero.act_.kind,step:hero.act_&&hero.act_.i},coach:coach&&{p:coach.pos.toArray(),act:coach.act_&&coach.act_.kind}};},
   start:startStory,skipIntro,chooseGroup,goExercise,setForm,EXS,GROUPS,STATIONS,NAV,findPath,setPreset,cam,get hero(){return hero},get coach(){return coach},measText,
   seek:t=>{repT=t;rep=1;fatigue=0;speed=0;lastPhase=-1;},setSpeed:s=>speed=s,openMistakes,enterLearn,learnClick:sel=>learnEl.querySelector(sel)?.click(),get FORMS(){return FORMS},

@@ -4,7 +4,9 @@
 // Keys come from .env (CEREBRAS_API_KEY, OPENAI_API_KEY) and never reach the browser.
 // Run: node server.mjs   (then open http://localhost:8767)
 import {createServer} from 'node:http';
-import {readFile} from 'node:fs/promises';
+import {readFile, stat} from 'node:fs/promises';
+import {gzipSync} from 'node:zlib';
+import {createHash} from 'node:crypto';
 import {join, normalize, extname, dirname, sep} from 'node:path';
 import {fileURLToPath} from 'node:url';
 
@@ -212,11 +214,56 @@ A lifter you have trained before walks into the gym at night. say: 1 or 2 spoken
   return {say: str(out.say, 300), t: {cerebras: meta}};
 }
 
+// Check my form: the camera measured a set in the browser (the video stays there); write the coach's verdict on the numbers
+async function apiForm(b) {
+  const ex = b.ex || {}, name = str(ex.name, 60) || 'the exercise', memory = str(b.memory, 3000);
+  const num = (x, lo, hi) => (typeof x === 'number' && isFinite(x) ? Math.max(lo, Math.min(hi, x)) : null);
+  const mistakes = (Array.isArray(b.mistakes) ? b.mistakes : []).slice(0, 8).map(m => ({k: str(m.k, 40), name: str(m.name, 60), fix: str(m.fix, 160)}));
+  const keys = new Set(mistakes.map(m => m.k));
+  // per rep: up to 10 named measurements (numbers or null) and the mistakes the camera flagged; the legend says what they mean
+  const reps = (Array.isArray(b.reps) ? b.reps : []).slice(0, 40).map((r, i) => {
+    const m = {}, src = r && typeof r.m === 'object' && r.m ? r.m : {};
+    for (const [k, v] of Object.entries(src).slice(0, 10)) if (/^[a-z_]{1,32}$/.test(k)) m[k] = v === null ? null : num(v, -999, 999);
+    return {n: i + 1, ...m, flags: (Array.isArray(r && r.flags) ? r.flags : []).filter(k => keys.has(k))};
+  });
+  const legend = str(b.legend, 900);
+  if (!reps.length) throw fail(400, 'no reps');
+  const schema = {type: 'object', additionalProperties: false, required: ['say', 'focus', 'remember'],
+    properties: {say: {type: 'string'}, focus: {type: 'string'}, remember: {type: 'string'}}};
+  const system = `${COACH}
+The lifter just did a set of ${name} in front of their camera, and a pose tracker measured every rep. What the measurements mean: ${legend || 'see the names'}. flags = the mistakes the tracker found (keys from the mistake list).
+say: 2 spoken sentences, at most 40 words, plain words for speech (no markdown, no lists, no negative numbers: say "6 cm below parallel", not "-6 cm"). First what went well, with one real number from the set. Then the single most important fix for the next set, built on that mistake's fix from the list; do not invent other cues (and in a squat the weight stays over the middle of the foot, never the toes). If what you remember mentions pain that this mistake can cause, link them in a few words. If every rep was clean, say so and how to progress.
+focus: the one cue for the next set, at most 6 words.
+remember: a note for your memory of this lifter, at most 18 words, with the numbers in plain words, no negative numbers (for example "Back squat camera check: 4 of 6 reps clean; knees caved on 2; depth 6 cm below parallel").`;
+  const user = JSON.stringify({exercise: name, mistakes, reps, memory: memory || 'nothing yet'});
+  const {out, meta} = await cerebras('form', system, user, schema, 700);
+  return {say: str(out.say, 400), focus: str(out.focus, 80), remember: str(out.remember, 200), t: {cerebras: meta}};
+}
+
 // ---------------------------------------------------------------- http
 const TYPES = {'.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8',
   '.css': 'text/css; charset=utf-8', '.json': 'application/json', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
   '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.glb': 'model/gltf-binary', '.md': 'text/markdown; charset=utf-8'};
-const API = {'/api/plan': apiPlan, '/api/ask': apiAsk, '/api/greet': apiGreet};
+const API = {'/api/plan': apiPlan, '/api/ask': apiAsk, '/api/greet': apiGreet, '/api/form': apiForm};
+// static files: gzipped once and kept (the three people are ~5 MB each, and a phone through a tunnel felt it), with an ETag so a
+// reload asks "changed?" and gets a 304 instead of the whole file again
+const FILES = new Map();
+async function sendFile(req, res, file) {
+  const st = await stat(file); if (!st.isFile()) throw Object.assign(new Error('not a file'), {code: 'EISDIR'});
+  let f = FILES.get(file);
+  if (!f || f.mtime !== st.mtimeMs) {
+    const raw = await readFile(file);
+    f = {mtime: st.mtimeMs, raw, gz: null, etag: '"' + createHash('sha1').update(raw).digest('base64url').slice(0, 20) + '"'};
+    FILES.set(file, f);
+  }
+  const type = TYPES[extname(file).toLowerCase()] || 'application/octet-stream';
+  const head = {'content-type': type, 'cache-control': 'no-cache', etag: f.etag, vary: 'accept-encoding'};
+  if (req.headers['if-none-match'] === f.etag) { res.writeHead(304, head); return res.end(); }
+  const zip = /text|javascript|json|svg/.test(type) && f.raw.length > 1024 && /\bgzip\b/.test(req.headers['accept-encoding'] || '');
+  if (zip && !f.gz) f.gz = gzipSync(f.raw, {level: 6});
+  res.writeHead(200, zip ? {...head, 'content-encoding': 'gzip'} : head);
+  res.end(zip ? f.gz : f.raw);
+}
 function send(res, status, body, type = 'application/json') {
   res.writeHead(status, {'content-type': type, 'cache-control': 'no-cache'});
   res.end(type === 'application/json' ? JSON.stringify(body) : body);
@@ -227,7 +274,8 @@ async function readJson(req) {
   try { return JSON.parse(Buffer.concat(parts).toString('utf8') || '{}'); } catch { throw fail(400, 'bad JSON'); }
 }
 createServer(async (req, res) => {
-  const url = new URL(req.url, 'http://localhost');
+  // a malformed path (e.g. "//") makes new URL() throw: answer 400 instead of taking the whole server down
+  let url; try { url = new URL(req.url, 'http://localhost'); } catch { return send(res, 400, 'bad request', 'text/plain'); }
   try {
     if (url.pathname === '/api/status')
       return send(res, 200, {cerebras: !!CB.key, model: CB.model, decisions: !!(OD.key && !OD.off && !OD.dead), decisionsModel: OD.model});
@@ -239,8 +287,7 @@ createServer(async (req, res) => {
     if (!p || p.endsWith(sep) || p.endsWith('/')) p = join(p, 'index.html');
     const file = join(SITE, p);
     if (!file.startsWith(SITE + sep)) return send(res, 403, 'forbidden', 'text/plain');
-    const data = await readFile(file);
-    send(res, 200, data, TYPES[extname(file).toLowerCase()] || 'application/octet-stream');
+    return sendFile(req, res, file);
   } catch (e) {
     if (e.code === 'ENOENT' || e.code === 'EISDIR') return send(res, 404, 'not found', 'text/plain');
     if (!url.pathname.startsWith('/api/')) return send(res, 500, 'server error', 'text/plain');
