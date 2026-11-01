@@ -39,7 +39,10 @@ function goTo(c,target,o={}){ // target world (x,z), o.face = world heading at t
   c.act_={kind:'walk',P,L:pathLen(P),s:0,v:0,face:o.face,done:o.done,speed:o.speed||WALK_SPEED,ph:0,land:o.land};return true;}
 function walkTick(c,dt){const a=c.act_;const rem=a.L-a.s;
   // yield: the coach waits if the lifter is right in front
-  if(c===coach&&hero&&hero.root.visible){const d=V(hero.pos.x-c.pos.x,0,hero.pos.z-c.pos.z);const fwd=V(Math.sin(c.heading),0,Math.cos(c.heading));if(d.length()<.95&&d.dot(fwd)>.3){a.v=Math.max(0,a.v-dt*3);play(c,'idle',.3);return;}}
+  // (a lifter standing still in the way would block him for good: after 2.5 s he stops where he is and the walk counts as done)
+  if(c===coach&&hero&&hero.root.visible){const d=V(hero.pos.x-c.pos.x,0,hero.pos.z-c.pos.z);const fwd=V(Math.sin(c.heading),0,Math.cos(c.heading));
+    if(d.length()<.95&&d.dot(fwd)>.3){a.v=Math.max(0,a.v-dt*3);play(c,'idle',.3);const hk=(hero.act_||{}).kind;a.wait=hk==='walk'||hk==='turn'?0:(a.wait||0)+dt;
+      if(a.wait>2.5){c.act_={kind:'idle'};a.done&&a.done();}return;}a.wait=0;}
   const want=Math.min(a.speed,Math.sqrt(Math.max(0,rem)*2.2)+.25);
   const look=pathAt(a.P,Math.min(a.L,a.s+.45));const tdir=look.dir;const dh=Math.abs(angDiff(Math.atan2(tdir.x,tdir.z),c.heading));
   const target=want*(1-.55*Math.min(1,dh/1.4));a.v+=clamp(target-a.v,-dt*2.5,dt*1.8);if(a.v<.12&&rem>.05)a.v=.12;

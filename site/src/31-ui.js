@@ -26,7 +26,7 @@ function showPlan(on,asPopup){const el=$('#plan');el.hidden=!on;if(!on)return;co
   $('#planTabs').innerHTML=g.plans.map((p,i)=>`<button data-p="${i}" aria-pressed="${p===SES.plan}">${p.name}</button>`).join('');
   renderPlanList();$('#planClose').hidden=!asPopup;$('#planSwap').hidden=!!asPopup&&flow==='exercise';}
 function renderPlanList(){const g=SES.group,p=SES.plan;if(!g||!p)return;$('#planTitle').textContent=p.name.toLowerCase().includes(g.name.toLowerCase())?p.name+' day':p.name+' '+g.name.toLowerCase()+' day';
-  $('#planWhy').textContent=p.who+'. '+p.why;
+  $('#planWhy').textContent=p.who+'. '+p.why;$('#planAI').hidden=!p.ai;$('#planAI').textContent=p.ai||''; // p.ai: the speed line of a plan the AI coach built
   const covered=new Set(p.items.flatMap(it=>[].concat(g.areaOf[it[0]]||[])));
   $('#planParts').innerHTML=g.parts.map(a=>`<span class="part" style="${covered.has(a)?'':'opacity:.4'}">${covered.has(a)?'✓':'·'} ${a}</span>`).join('');
   $('#planList').innerHTML=p.items.map(([k,sets,rest],i)=>{const e=EXS[k];const cls=EXK===k&&flow==='exercise'?'now':SES.done.has(k)?'done':'';
@@ -35,7 +35,7 @@ function renderPlanList(){const g=SES.group,p=SES.plan;if(!g||!p)return;$('#plan
 $('#planTabs').addEventListener('click',e=>{const b=e.target.closest('[data-p]');if(!b)return;SES.plan=SES.group.plans[+b.dataset.p];showPlan(true,!$('#planClose').hidden);});
 $('#planList').addEventListener('click',e=>{const b=e.target.closest('[data-x]');if(b){showPlan(false);goExercise(b.dataset.x);}});
 $('#planGo').addEventListener('click',()=>{showPlan(false);goExercise($('#planGo').dataset.x);});
-$('#planSwap').addEventListener('click',()=>{showPlan(false);if(flow==='exercise')leaveStation(()=>askAgain());else askAgain();});
+$('#planSwap').addEventListener('click',()=>{showPlan(false);whenFree(askAgain);});
 $('#planClose').addEventListener('click',()=>showPlan(false));
 $('#planBtn').addEventListener('click',()=>{if(!SES.group)return;const el=$('#plan');if(!el.hidden){showPlan(false);return;}closePanels();showPlan(true,true);});
 
@@ -45,17 +45,18 @@ function renderExerciseUI(){const e=EX;const items=SES.plan?SES.plan.items.map(i
   $('#exEyebrow').textContent=(i>=0?`${i+1} of ${items.length} · `:'')+e.eq;$('#exTitle').textContent=e.name;$('#exQuip').textContent=e.quip||'';$('#exPart').textContent=e.part;
   $('#steps').innerHTML=e.steps.map((s,j)=>`<button data-i="${j}" aria-label="Step ${j+1}: ${s[0]}"><b><i>${j+1}</i><em> · ${s[0]}</em></b><span>${s[1]}</span></button>`).join('');
   const nx=nextInPlan();$('#nextBtn').innerHTML='<span>'+(nx?'Next<span class="nxn">: '+EXS[nx].name.toLowerCase()+'</span> →':i>=0?'Finish<span class="nxn"> the workout</span> ✓':'<span class="nxn">Back to the </span>Plan')+'</span>';
-  setTool('tPause',paused);setTool('tSlow',speed<1);setTool('tMistake',false);setTool('tLearn',false);}
+  setTool('tPause',paused);setTool('tSlow',speed<1);setTool('tMistake',false);setTool('tLearn',false);setTool('tQuiz',false);}
 function setTool(id,on){$('#'+id).setAttribute('aria-pressed',!!on);}
 $('#nextBtn').addEventListener('click',()=>{if(flow!=='exercise')return;const nx=nextInPlan();
   if(nx)goExercise(nx);else{const inPlan=SES.plan&&SES.plan.items.some(it=>it[0]===EXK);leaveStation(()=>{if(inPlan)finishWorkout();else{setFlow('plan');showPlan(true);}});}});
 $('#tPause').addEventListener('click',()=>setPaused(!paused));
 $('#tSlow').addEventListener('click',()=>{speed=speed<1?1:.4;setTool('tSlow',speed<1);});
 $('#tMistake').addEventListener('click',()=>{const el=$('#mist');if(!el.hidden){closePanels();return;}closePanels();openMistakes();});
-$('#tLearn').addEventListener('click',()=>{if(learn){exitLearn();return;}closePanels();enterLearn(0);});
+$('#tLearn').addEventListener('click',()=>{if(learn&&learn.mode==='steps'){exitLearn();return;}closePanels();enterLearn(0);});
+$('#tQuiz').addEventListener('click',()=>{if(learn&&learn.mode==='quiz'){exitLearn();return;}closePanels();enterQuiz();});
 $('#steps').addEventListener('click',e=>{const b=e.target.closest('[data-i]');if(!b||flow!=='exercise')return;if(!learn){closePanels();enterLearn(+b.dataset.i);}else goStep(+b.dataset.i);});
 function setPaused(p){paused=p;setTool('tPause',p);const b=$('#tPause');b.innerHTML=p?'<i>▶</i>Play':'<i>❚❚</i>Pause';}
-function closePanels(){$('#mist').hidden=true;setTool('tMistake',false);if(learn)exitLearn();if(form!=='good'&&flow==='exercise')setForm('good');}
+function closePanels(){$('#mist').hidden=true;setTool('tMistake',false);closeCoach();if(learn)exitLearn();if(form!=='good'&&flow==='exercise')setForm('good');}
 // ---- right vs wrong
 function openMistakes(){const el=$('#mist');el.hidden=false;setTool('tMistake',true);renderMistakes();}
 function renderMistakes(){const el=$('#mist');const ms=Object.keys(FORMS).filter(k=>k!=='good');const F=FORMS[form];

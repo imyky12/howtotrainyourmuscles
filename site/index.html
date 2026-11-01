@@ -49,10 +49,13 @@ button:focus-visible{outline:2px solid var(--help);outline-offset:2px}
   .lcard h1{font-size:clamp(2.6rem,13vw,4.4rem)}
 }
 .credit{margin:0;font-size:.7rem;color:var(--muted);max-width:60ch}
+.credits{position:absolute;left:max(16px,env(safe-area-inset-left,0px));bottom:calc(14px + env(safe-area-inset-bottom,0px));font-size:.72rem;color:var(--muted);max-width:min(60ch,calc(100vw - 32px))}
+.credits summary{cursor:pointer;list-style:none;opacity:.75}.credits summary::-webkit-details-marker{display:none}
+.credits summary:hover{opacity:1}.credits[open] summary{margin-bottom:4px}
 .kbd{font:600 .78rem var(--body);color:var(--muted)}
 
 /* top bar */
-#top{position:fixed;z-index:30;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;gap:10px;pointer-events:none;
+#top{position:fixed;z-index:41;/* above #landing (40), so "Coach’s memory" works on the welcome screen too */top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;gap:10px;pointer-events:none;
   padding:calc(12px + env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) 0 max(16px,env(safe-area-inset-left,0px))}
 #top>*{pointer-events:auto}
 .brand{font:800 1.15rem var(--display);letter-spacing:.06em;text-transform:uppercase}
@@ -155,6 +158,83 @@ button:focus-visible{outline:2px solid var(--help);outline-offset:2px}
 /* done */
 #done{position:fixed;z-index:26;left:50%;top:50%;transform:translate(-50%,-50%);width:min(440px,calc(100vw - 32px));padding:22px;display:grid;gap:12px;text-align:left}
 #done h2{margin:0;font:900 2.4rem/.9 var(--display);text-transform:uppercase}
+/* AI coach (33-coach-ai.js): a sentence instead of a chip, the ask panel at the station, the coach's memory */
+input{font:inherit;color:inherit;user-select:text;-webkit-user-select:text}
+.aiForm{display:flex;gap:6px}
+.aiForm input{flex:1;min-width:0;background:rgba(243,241,234,.07);border:1px solid var(--line);border-radius:12px;padding:10px 12px;font-size:.92rem}
+.aiForm input:focus{outline:none;border-color:rgba(243,241,234,.55)}
+.aiForm button{border:1px solid var(--line);border-radius:12px;padding:0 12px;font-weight:700;font-size:.9rem;white-space:nowrap}
+.aiForm button.go{background:var(--ink);color:#121417;border-color:var(--ink)}.aiForm button:disabled{opacity:.5}
+.aiForm button.on{background:var(--main);border-color:var(--main);color:#fff}
+.aiForm button.mic{width:44px;padding:0;display:grid;place-items:center;color:var(--ink)}
+.aiForm button.mic:hover{border-color:rgba(243,241,234,.5)}
+.aiForm button.mic svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.aiForm button.mic.on{color:#fff;animation:micPulse 1.2s ease-in-out infinite}
+#caVoice{display:inline-flex;align-items:center;gap:6px}
+#caVoice svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+@keyframes micPulse{0%,100%{box-shadow:0 0 0 0 rgba(255,59,42,.55)}50%{box-shadow:0 0 0 6px rgba(255,59,42,0)}}
+#aiAsk{margin-top:12px;display:grid;gap:6px}
+#aiAsk .hint{font-size:.74rem;color:var(--muted)}
+#chips[hidden]+#aiAsk{display:none!important}
+.speed{margin:0;font:600 .72rem var(--body);color:#ffd27a}
+#coachAsk{gap:12px}
+#coachAsk .q{color:var(--muted);font-style:italic;margin:0;font-size:.85rem}
+#coachAsk .a{font-size:.95rem;line-height:1.45;margin:0}#coachAsk .a.muted{color:var(--muted)}
+#caLog{display:grid;gap:10px}
+#caTop{display:flex;justify-content:space-between;align-items:center;gap:8px}
+#caVoice{padding:4px 10px;font-size:.74rem}
+.read{display:grid;gap:5px}
+.also{font-size:.74rem;color:var(--muted)}
+.acts{display:flex;flex-wrap:wrap;gap:4px 16px}
+.lnk{font:600 .82rem var(--body);padding:2px 0;text-decoration:underline;text-decoration-color:rgba(243,241,234,.3);text-underline-offset:3px}
+.lnk:hover{text-decoration-color:var(--ink)}.lnk.go{color:#9df0c8;text-decoration-color:rgba(157,240,200,.4)}
+.bar{position:relative;display:flex;justify-content:space-between;gap:8px;padding:5px 9px;border-radius:8px;background:rgba(243,241,234,.05);font-size:.8rem;overflow:hidden}
+.bar i{position:absolute;left:0;top:0;bottom:0;background:rgba(243,241,234,.12)}.bar.hit i{background:rgba(255,59,42,.35)}
+.bar span,.bar b{position:relative}
+.warn{margin:0;color:#ffb4ab;font-weight:600;font-size:.9rem}
+/* today's progress ring (34-progress.js): bottom-right, opens the list of today's exercises */
+#ring{position:fixed;z-index:27;right:max(16px,env(safe-area-inset-right,0px));bottom:calc(18px + env(safe-area-inset-bottom,0px));width:64px;height:64px;border-radius:50%;padding:0;display:grid;place-items:center}
+#ring svg{position:absolute;inset:0;width:100%;height:100%;transform:rotate(-90deg)}
+#ring circle{fill:none;stroke-width:5}
+#ring .bg{stroke:rgba(243,241,234,.14)}
+#ring .fg{stroke:var(--ok);stroke-linecap:round;stroke-dasharray:163.36;stroke-dashoffset:163.36;transition:stroke-dashoffset .8s ease}
+#ring .txt{position:relative;display:grid;justify-items:center;line-height:1}
+#ring .pc{font:800 1.05rem var(--display);letter-spacing:.02em}
+#ring .of{font:600 .6rem var(--body);color:var(--muted);margin-top:2px}
+#ring:hover,#ring.open{border-color:rgba(243,241,234,.5)}
+#ringPanel{position:fixed;z-index:28;right:max(16px,env(safe-area-inset-right,0px));bottom:calc(92px + env(safe-area-inset-bottom,0px));width:min(340px,calc(100vw - 32px));max-height:calc(100% - 180px);overflow:auto;padding:16px;display:grid;gap:12px;align-content:start}
+.rpHead{display:flex;justify-content:space-between;align-items:flex-end;gap:10px}
+.rpHead h3{margin:2px 0 0;font:900 1.4rem/1 var(--display);text-transform:uppercase;text-wrap:balance}
+.rpCount{font:600 .78rem var(--body);color:#9df0c8;white-space:nowrap}
+.rpList{list-style:none;margin:0;padding:0;display:grid;gap:3px}
+.rpList button{width:100%;display:grid;grid-template-columns:24px 1fr auto;gap:10px;align-items:center;text-align:left;padding:8px 10px;border-radius:10px;border:1px solid transparent}
+.rpList button:hover,.rpList button:focus-visible{background:rgba(243,241,234,.07);border-color:var(--line)}
+.rpList .mk{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font:700 .72rem var(--body);background:rgba(243,241,234,.08);color:var(--muted)}
+.rpList b{font-weight:600;font-size:.92rem}
+.rpList .done .mk{background:rgba(47,209,138,.2);color:#9df0c8}.rpList .done b{color:var(--muted)}
+.rpList .now .mk{background:var(--help);color:#121417}
+.rpList .now button{border-color:rgba(255,178,31,.45);background:rgba(255,178,31,.08)}
+.rpList .tag{font-size:.74rem;color:var(--muted);white-space:nowrap;max-width:120px;overflow:hidden;text-overflow:ellipsis}.rpList .now .tag{color:var(--help);font-weight:700}.rpList .done .tag{color:#9df0c8}
+#ringInfo{position:fixed;z-index:29;width:280px;padding:14px;display:grid;gap:6px;pointer-events:none}
+#ringInfo h4{margin:0;font:900 1.25rem/1 var(--display);text-transform:uppercase}
+#ringInfo .quip{margin:0;font-size:.85rem;color:#cfd3d6}
+#ringInfo dl{margin:2px 0 0;display:grid;grid-template-columns:auto 1fr;gap:4px 10px;font-size:.8rem}
+#ringInfo dt{color:var(--muted)}#ringInfo dd{margin:0}
+#ringInfo .st{font:600 .74rem var(--body);color:var(--muted)}#ringInfo .st.done{color:#9df0c8}#ringInfo .st.now{color:var(--help)}
+@media (min-width:761px){ /* the Next button and the steps strip make room for the ring */
+  #nextBtn{right:calc(max(16px,env(safe-area-inset-right,0px)) + 76px)}
+  #dock{right:calc(350px + env(safe-area-inset-right,0px))}
+}
+@media (max-width:760px){ /* phones: a smaller ring just above the exercise controls; the list is a bottom sheet */
+  #ring{width:52px;height:52px;bottom:calc(122px + env(safe-area-inset-bottom,0px))}
+  body:has(#hud[hidden]) #ring{bottom:calc(16px + env(safe-area-inset-bottom,0px))}
+  #ring .pc{font-size:.85rem}#ring .of{display:none}
+  body:has(#plan:not([hidden])) #ring,body:has(.side:not([hidden])) #ring{display:none}
+  #ringPanel{left:0;right:0;width:auto;bottom:0;max-height:72%;border-radius:18px 18px 0 0;padding:16px max(16px,env(safe-area-inset-right,0px)) calc(16px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
+}
+#memPanel{position:fixed;z-index:42;right:max(16px,env(safe-area-inset-right,0px));top:calc(56px + env(safe-area-inset-top,0px));width:min(340px,calc(100vw - 32px));max-height:70%;overflow:auto;padding:16px;display:grid;gap:10px;align-content:start}
+#memPanel h3{margin:0;font:900 1.5rem/1 var(--display);text-transform:uppercase}
+#memPanel ul{margin:4px 0 0;padding-left:18px;font-size:.88rem;display:grid;gap:3px}#memPanel small{color:var(--muted)}
 @media (max-width:760px){
   /* exercise: one-line title bar */
   #exCard{top:calc(52px + env(safe-area-inset-top,0px));right:max(16px,env(safe-area-inset-right,0px));width:auto;padding:8px 12px;display:flex;align-items:center;gap:10px;border-radius:12px}
@@ -170,7 +250,7 @@ button:focus-visible{outline:2px solid var(--help);outline-offset:2px}
   #steps button b{font-size:.85rem}#steps button em,#steps button span{display:none}
   #steps button.on{flex:1 1 auto;min-width:0;place-items:center start;padding:0 10px}
   #steps button.on em{display:inline}#steps button.on b{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
-  #tools{position:static;display:grid;grid-template-columns:repeat(4,1fr);width:calc(100% - 96px);border-radius:12px;padding:3px;gap:2px;pointer-events:auto}
+  #tools{position:static;display:grid;grid-auto-flow:column;grid-auto-columns:1fr;width:calc(100% - 96px);border-radius:12px;padding:3px;gap:2px;pointer-events:auto}
   #tools button{flex-direction:column;gap:1px;padding:5px 2px;font-size:.64rem;text-align:center;justify-content:center;border-radius:9px;min-height:40px}
   #nextBtn{position:absolute;right:max(16px,env(safe-area-inset-right,0px));bottom:calc(10px + env(safe-area-inset-bottom,0px));height:46px;width:88px;padding:0 10px;justify-content:center;font-size:.9rem}
   .nxn{display:none}
@@ -204,12 +284,15 @@ button:focus-visible{outline:2px solid var(--help);outline-offset:2px}
     <h1>Your muscles called. <em>They want a plan.</em></h1>
     <div><button class="btn" id="go" disabled>Warming up…</button></div>
   </div>
+  <!-- CC-BY 4.0 assets (clothing, motion capture) need visible attribution: kept here, folded away -->
+  <details class="credits"><summary>Credits</summary><p class="credit" id="credit"></p></details>
 </section>
 
 <header id="top">
   <div class="brand">Muscle <span>House</span></div>
-  <div class="prow"><button class="pill glass" id="planBtn" hidden>Today’s plan</button><button class="pill glass" id="skip" hidden>Skip intro</button></div>
+  <div class="prow"><button class="pill glass" id="memBtn" hidden>Coach’s memory</button><button class="pill glass" id="planBtn" hidden>Today’s plan</button><button class="pill glass" id="skip" hidden>Skip intro</button></div>
 </header>
+<aside id="memPanel" class="glass" hidden aria-live="polite"></aside>
 
 <div id="cap" aria-live="polite"></div>
 
@@ -217,16 +300,20 @@ button:focus-visible{outline:2px solid var(--help);outline-offset:2px}
   <div class="who">Coach Rana</div>
   <p id="say"></p>
   <div id="chips" hidden></div>
+  <form id="aiAsk" hidden autocomplete="off">
+    <div class="aiForm"><input id="aiIn" maxlength="400" placeholder="Or just tell me: “legs, sore knee, 30 min”" aria-label="Tell the coach what you want to train"><button type="button" class="mic" id="aiMic" aria-label="Speak to the coach" title="Speak"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="2.5" width="6" height="11.5" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M8.5 21h7"/></svg></button><button type="submit" class="go" id="aiGo">Plan it</button></div>
+    <span class="hint">Your goal, time, equipment or anything that hurts. I’ll build the plan around it.</span>
+  </form>
 </div>
 
 <aside id="plan" class="glass" hidden aria-label="Today's plan">
   <div><span class="eyebrow" id="planEyebrow">Today</span><h2 id="planTitle"></h2></div>
   <div class="tabs" id="planTabs" role="group" aria-label="Plan"></div>
   <p class="why" id="planWhy"></p>
+  <p class="speed" id="planAI" hidden></p>
   <div class="parts" id="planParts"></div>
   <ol id="planList"></ol>
   <div class="prow"><button class="btn" id="planGo"></button><button class="btn ghost sm" id="planSwap">Pick another muscle</button><button class="btn ghost sm" id="planClose" hidden>Close</button></div>
-  <p class="credit" id="credit"></p>
 </aside>
 
 <div id="walk" class="glass" hidden><span id="walkTxt"></span><button class="btn sm ghost" id="fast">Fast-forward ››</button></div>
@@ -249,15 +336,27 @@ button:focus-visible{outline:2px solid var(--help);outline-offset:2px}
     <button id="tSlow" aria-pressed="false"><i>½</i>Slow-mo</button>
     <button id="tMistake" aria-pressed="false"><i>✕</i>Mistakes</button>
     <button id="tLearn" aria-pressed="false"><i>?</i>Learn</button>
+    <button id="tQuiz" aria-pressed="false"><i>◎</i>Quiz</button>
+    <button id="tCoach" aria-pressed="false" hidden><i>✦</i>Ask coach</button>
   </nav>
   <div id="steps" class="glass"></div>
   </div>
   <button class="btn" id="nextBtn"></button>
   <aside id="mist" class="side glass" hidden aria-live="polite"></aside>
   <aside id="learn" class="side glass" hidden aria-live="polite"></aside>
+  <aside id="coachAsk" class="side glass" hidden aria-live="polite">
+    <div id="caTop"><span class="eyebrow">Ask Coach Rana</span><button class="tg" id="caVoice" aria-pressed="true">Voice on</button></div>
+    <div id="caLog"></div>
+    <form id="caForm" class="aiForm" autocomplete="off"><input id="caIn" maxlength="400" placeholder="“My lower back hurts on these”" aria-label="Ask the coach"><button type="button" class="mic" id="caMic" aria-label="Speak to the coach" title="Speak"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="2.5" width="6" height="11.5" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M8.5 21h7"/></svg></button><button type="submit" class="go">Ask</button></form>
+    <div class="row" id="caSugg"></div>
+  </aside>
 </div>
 
 <div id="done" class="glass" hidden></div>
+
+<button id="ring" class="glass" hidden aria-expanded="false" aria-controls="ringPanel"><svg viewBox="0 0 64 64" aria-hidden="true"><circle class="bg" cx="32" cy="32" r="26"/><circle class="fg" cx="32" cy="32" r="26"/></svg><span class="txt"><span class="pc">0%</span><span class="of">0/0</span></span></button>
+<aside id="ringPanel" class="glass" hidden aria-label="Today’s plan: switch exercise or muscle"></aside>
+<aside id="ringInfo" class="glass" hidden aria-hidden="true"></aside>
 
 <script src="lifter.js"></script>
 <script src="coach.js"></script>

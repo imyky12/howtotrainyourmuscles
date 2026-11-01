@@ -591,7 +591,10 @@ function goTo(c,target,o={}){ // target world (x,z), o.face = world heading at t
   c.act_={kind:'walk',P,L:pathLen(P),s:0,v:0,face:o.face,done:o.done,speed:o.speed||WALK_SPEED,ph:0,land:o.land};return true;}
 function walkTick(c,dt){const a=c.act_;const rem=a.L-a.s;
   // yield: the coach waits if the lifter is right in front
-  if(c===coach&&hero&&hero.root.visible){const d=V(hero.pos.x-c.pos.x,0,hero.pos.z-c.pos.z);const fwd=V(Math.sin(c.heading),0,Math.cos(c.heading));if(d.length()<.95&&d.dot(fwd)>.3){a.v=Math.max(0,a.v-dt*3);play(c,'idle',.3);return;}}
+  // (a lifter standing still in the way would block him for good: after 2.5 s he stops where he is and the walk counts as done)
+  if(c===coach&&hero&&hero.root.visible){const d=V(hero.pos.x-c.pos.x,0,hero.pos.z-c.pos.z);const fwd=V(Math.sin(c.heading),0,Math.cos(c.heading));
+    if(d.length()<.95&&d.dot(fwd)>.3){a.v=Math.max(0,a.v-dt*3);play(c,'idle',.3);const hk=(hero.act_||{}).kind;a.wait=hk==='walk'||hk==='turn'?0:(a.wait||0)+dt;
+      if(a.wait>2.5){c.act_={kind:'idle'};a.done&&a.done();}return;}a.wait=0;}
   const want=Math.min(a.speed,Math.sqrt(Math.max(0,rem)*2.2)+.25);
   const look=pathAt(a.P,Math.min(a.L,a.s+.45));const tdir=look.dir;const dh=Math.abs(angDiff(Math.atan2(tdir.x,tdir.z),c.heading));
   const target=want*(1-.55*Math.min(1,dh/1.4));a.v+=clamp(target-a.v,-dt*2.5,dt*1.8);if(a.v<.12&&rem>.05)a.v=.12;
@@ -3308,7 +3311,20 @@ function coachTo(e,done){const s=coachSpotOf(e);goTo(coach,s.p,{face:s.h,speed:W
 function walkStatus(t){$('#walk').hidden=!t;$('#walkTxt').textContent=t||'';}
 function goExercise(k){const e=EXS[k];if(!e)return;closePanels();showPlan(false);pending=k;SES.i=Math.max(0,SES.plan?SES.plan.items.findIndex(it=>it[0]===k):0);renderPlanList();
   const isBar=e.needs==='bar'||e.needs==='ez';const start=()=>{if(isBar)fetchBar(e,()=>approach(e));else if(e.needs)fetchDB(e,()=>approach(e));else approach(e);};
-  if(flow==='exercise')leaveStation(start);else start();}
+  whenFree(start);}
+// ---- the lifter is busy (walking somewhere, carrying gear, getting on or off a machine) and the user asks for something else
+// Empty-handed walking just stops. Anything else finishes cleanly first (on the machine, then off it with the gear put back),
+// so two activities never fight over the lifter.
+let queuedAct=null;
+function whenFree(fn){if(flow==='exercise'){queuedAct=null;leaveStation(fn);return;}
+  if(flow!=='walking'&&flow!=='entering'&&flow!=='leaving'){queuedAct=null;fn();return;}
+  if(flow==='walking'&&cancelWalk()){queuedAct=null;fn();return;}
+  queuedAct=fn;walkStatus('Finishing this first, then on to what you picked');}
+function cancelWalk(){const a=hero.act_||{};const empty=!hero.carry&&!hero.dbs&&!hero.bar&&!(hero.hold&&hero.hold.length);
+  if(!empty||(a.kind!=='walk'&&a.kind!=='turn'&&a.kind!=='idle'))return false;
+  if(a.kind!=='idle'){hero.act_={kind:'idle'};play(hero,'idle',.4);}
+  pending=null;hero.pair=null;hero.dbOne=false;hero.barFr=null;hero.barGrip=null;walkStatus('');return true;}
+function runQueued(){if(!queuedAct)return false;const f=queuedAct;queuedAct=null;f();return true;}
 function approach(e){setFlow('walking');walkStatus('Off to the '+STATIONS[e.station].name);const pr=preOf(e);
   coachTo(e);goTo(hero,pr.p,{face:pr.face,land:ENTRY[e.entry].land,done:()=>arrive(e)});}
 function arrive(e){EX=e;EXK=e.key;FORMS=e.forms;ST=STATIONS[e.station];form='good';
@@ -3322,8 +3338,9 @@ function arrive(e){EX=e;EXK=e.key;FORMS=e.forms;ST=STATIONS[e.station];form='goo
 // canonical spot (x, z, heading) the character is standing on right now
 function hereC(c,st){const p=toC(st,c.pos);return {x:p.x,z:p.z,h:angDiff(c.heading,st.rot)};}
 function fitOrbitFromCam(){const d=V().subVectors(cam.pos,cam.center);cam.r=d.length();cam.az=Math.atan2(d.x,d.z);cam.el=Math.asin(clamp(d.y/cam.r,-1,1));}
-function startExercise(){setFlow('exercise');form='good';setForm('good');repT=matchRepStart();rep=1;fatigue=0;showHUD(true);renderExerciseUI();hero._m=null;hero._py=undefined;
-  if(SES.plan)SES.done.add(EXK);}
+function startExercise(){if(queuedAct){const f=queuedAct;queuedAct=null;setFlow('exercise');leaveStation(f);return;} // asked for something else on the way here
+  setFlow('exercise');form='good';setForm('good');repT=matchRepStart();rep=1;fatigue=0;showHUD(true);renderExerciseUI();hero._m=null;hero._py=undefined;
+  if(SES.plan)SES.done.add(EXK);coachExerciseStarted(EXK);}
 // the rep clock starts at whichever end of the rep (top or bottom) the entry left the hands at, so the first frame does not jump
 function matchRepStart(){const F=FORMS.good,T=repTiming(F);const keep=snapshot(hero),props=propState(ST.P);const B=hero.bones;
   const hands=()=>[wpos(B.LeftHand),wpos(B.RightHand),wpos(B.Hips)];const cur=hands();let best=0,bd=1e9;
@@ -3331,10 +3348,11 @@ function matchRepStart(){const F=FORMS.good,T=repTiming(F);const keep=snapshot(h
   applySnap(hero,keep);setPropState(props);hero._m=null;return best;}
 function leaveStation(then){const e=EX;showHUD(false);setForm('good');splitOn=false;twin.root.visible=false;clearGlows(MU);setFlow('leaving');
   const steps=ENTRY[e.entry].leave(ST,e);const up=e.needs==='bar'&&hero.barFr?barUpSteps(ST):[]; // a straight bar goes up onto the shoulders for the walk back
+  const next=()=>{if(!runQueued())then&&then();}; // a later request (made while getting off) wins
   runSeq(hero,ST,[...steps,...up],()=>{
     const P=ST.P;cam.orbit=false;
-    if(e.needs==='bar'||e.needs==='ez'){scene.attach(hero.bar);P.bar=null;returnBar(()=>{then&&then();});}
-    else if(e.needs){hero.dbs.forEach(d=>d&&scene.attach(d));P.db=null;returnDB(()=>{then&&then();});}else then&&then();});}
+    if(e.needs==='bar'||e.needs==='ez'){scene.attach(hero.bar);P.bar=null;returnBar(next);}
+    else if(e.needs){hero.dbs.forEach(d=>d&&scene.attach(d));P.db=null;returnDB(next);}else next();});}
 
 // ---- dumbbells: take a pair from the rack, carry, put back in the same slot
 function pickPair(e){const want=e.dbSize||'medium';const sizes={light:[.7,.95],medium:[.9,1.2],heavy:[1.15,1.6]}[want];
@@ -3398,7 +3416,7 @@ function showPlan(on,asPopup){const el=$('#plan');el.hidden=!on;if(!on)return;co
   $('#planTabs').innerHTML=g.plans.map((p,i)=>`<button data-p="${i}" aria-pressed="${p===SES.plan}">${p.name}</button>`).join('');
   renderPlanList();$('#planClose').hidden=!asPopup;$('#planSwap').hidden=!!asPopup&&flow==='exercise';}
 function renderPlanList(){const g=SES.group,p=SES.plan;if(!g||!p)return;$('#planTitle').textContent=p.name.toLowerCase().includes(g.name.toLowerCase())?p.name+' day':p.name+' '+g.name.toLowerCase()+' day';
-  $('#planWhy').textContent=p.who+'. '+p.why;
+  $('#planWhy').textContent=p.who+'. '+p.why;$('#planAI').hidden=!p.ai;$('#planAI').textContent=p.ai||''; // p.ai: the speed line of a plan the AI coach built
   const covered=new Set(p.items.flatMap(it=>[].concat(g.areaOf[it[0]]||[])));
   $('#planParts').innerHTML=g.parts.map(a=>`<span class="part" style="${covered.has(a)?'':'opacity:.4'}">${covered.has(a)?'✓':'·'} ${a}</span>`).join('');
   $('#planList').innerHTML=p.items.map(([k,sets,rest],i)=>{const e=EXS[k];const cls=EXK===k&&flow==='exercise'?'now':SES.done.has(k)?'done':'';
@@ -3407,7 +3425,7 @@ function renderPlanList(){const g=SES.group,p=SES.plan;if(!g||!p)return;$('#plan
 $('#planTabs').addEventListener('click',e=>{const b=e.target.closest('[data-p]');if(!b)return;SES.plan=SES.group.plans[+b.dataset.p];showPlan(true,!$('#planClose').hidden);});
 $('#planList').addEventListener('click',e=>{const b=e.target.closest('[data-x]');if(b){showPlan(false);goExercise(b.dataset.x);}});
 $('#planGo').addEventListener('click',()=>{showPlan(false);goExercise($('#planGo').dataset.x);});
-$('#planSwap').addEventListener('click',()=>{showPlan(false);if(flow==='exercise')leaveStation(()=>askAgain());else askAgain();});
+$('#planSwap').addEventListener('click',()=>{showPlan(false);whenFree(askAgain);});
 $('#planClose').addEventListener('click',()=>showPlan(false));
 $('#planBtn').addEventListener('click',()=>{if(!SES.group)return;const el=$('#plan');if(!el.hidden){showPlan(false);return;}closePanels();showPlan(true,true);});
 
@@ -3417,17 +3435,18 @@ function renderExerciseUI(){const e=EX;const items=SES.plan?SES.plan.items.map(i
   $('#exEyebrow').textContent=(i>=0?`${i+1} of ${items.length} · `:'')+e.eq;$('#exTitle').textContent=e.name;$('#exQuip').textContent=e.quip||'';$('#exPart').textContent=e.part;
   $('#steps').innerHTML=e.steps.map((s,j)=>`<button data-i="${j}" aria-label="Step ${j+1}: ${s[0]}"><b><i>${j+1}</i><em> · ${s[0]}</em></b><span>${s[1]}</span></button>`).join('');
   const nx=nextInPlan();$('#nextBtn').innerHTML='<span>'+(nx?'Next<span class="nxn">: '+EXS[nx].name.toLowerCase()+'</span> →':i>=0?'Finish<span class="nxn"> the workout</span> ✓':'<span class="nxn">Back to the </span>Plan')+'</span>';
-  setTool('tPause',paused);setTool('tSlow',speed<1);setTool('tMistake',false);setTool('tLearn',false);}
+  setTool('tPause',paused);setTool('tSlow',speed<1);setTool('tMistake',false);setTool('tLearn',false);setTool('tQuiz',false);}
 function setTool(id,on){$('#'+id).setAttribute('aria-pressed',!!on);}
 $('#nextBtn').addEventListener('click',()=>{if(flow!=='exercise')return;const nx=nextInPlan();
   if(nx)goExercise(nx);else{const inPlan=SES.plan&&SES.plan.items.some(it=>it[0]===EXK);leaveStation(()=>{if(inPlan)finishWorkout();else{setFlow('plan');showPlan(true);}});}});
 $('#tPause').addEventListener('click',()=>setPaused(!paused));
 $('#tSlow').addEventListener('click',()=>{speed=speed<1?1:.4;setTool('tSlow',speed<1);});
 $('#tMistake').addEventListener('click',()=>{const el=$('#mist');if(!el.hidden){closePanels();return;}closePanels();openMistakes();});
-$('#tLearn').addEventListener('click',()=>{if(learn){exitLearn();return;}closePanels();enterLearn(0);});
+$('#tLearn').addEventListener('click',()=>{if(learn&&learn.mode==='steps'){exitLearn();return;}closePanels();enterLearn(0);});
+$('#tQuiz').addEventListener('click',()=>{if(learn&&learn.mode==='quiz'){exitLearn();return;}closePanels();enterQuiz();});
 $('#steps').addEventListener('click',e=>{const b=e.target.closest('[data-i]');if(!b||flow!=='exercise')return;if(!learn){closePanels();enterLearn(+b.dataset.i);}else goStep(+b.dataset.i);});
 function setPaused(p){paused=p;setTool('tPause',p);const b=$('#tPause');b.innerHTML=p?'<i>▶</i>Play':'<i>❚❚</i>Pause';}
-function closePanels(){$('#mist').hidden=true;setTool('tMistake',false);if(learn)exitLearn();if(form!=='good'&&flow==='exercise')setForm('good');}
+function closePanels(){$('#mist').hidden=true;setTool('tMistake',false);closeCoach();if(learn)exitLearn();if(form!=='good'&&flow==='exercise')setForm('good');}
 // ---- right vs wrong
 function openMistakes(){const el=$('#mist');el.hidden=false;setTool('tMistake',true);renderMistakes();}
 function renderMistakes(){const el=$('#mist');const ms=Object.keys(FORMS).filter(k=>k!=='good');const F=FORMS[form];
@@ -3510,11 +3529,12 @@ function exerciseTick(dt){const F=FORMS[form];const sdt=dt*speed;
   warnAt=form==='good'||hideHints?null:form;}
 // ---- split view: same station, two takes (the right way and the mistake)
 const camL=new THREE.PerspectiveCamera(45,1,.05,200),camR=new THREE.PerspectiveCamera(45,1,.05,200);
-const sideOpen=()=>!$('#mist').hidden||!$('#learn').hidden;
+const sidePanel=()=>['#mist','#learn','#coachAsk'].map(s=>$(s)).find(el=>!el.hidden)||null;
+const sideOpen=()=>!!sidePanel();
 function splitHalves(){const W=innerWidth,H=innerHeight;
   if(W>760){const w=sideOpen()?W-380:W;return [{x:0,y:0,w:Math.round(w/2),h:H},{x:Math.round(w/2),y:0,w:w-Math.round(w/2),h:H}];}
   // phone: stacked between the exercise card and whatever sits at the bottom
-  const top=Math.round($('#exCard').getBoundingClientRect().bottom+4);const side=sideOpen()?(sideOpen()&&!$('#mist').hidden?$('#mist'):$('#learn')):null;
+  const top=Math.round($('#exCard').getBoundingClientRect().bottom+4);const side=sidePanel();
   const bot=Math.round(Math.min(side?side.getBoundingClientRect().top:H,$('#dock').getBoundingClientRect().top)-4);const h=Math.max(60,Math.round((bot-top)/2));return [{x:0,y:top,w:W,h},{x:0,y:top+h,w:W,h}];}
 // swing the view around the body until a wall no longer cuts the distance short
 function clearView(ctr,dir,d){let best=null,bf=-1;for(const a of[0,25,-25,45,-45,65,-65,90,-90,120,-120]){const v=dir.clone().applyAxisAngle(V(0,1,0),a*DEG);const p=roomRay(ctr,ctr.clone().addScaledVector(v,d));const f=p.distanceTo(ctr);
@@ -3564,20 +3584,19 @@ function updateLabels(){updateSplitUI();if(flow!=='exercise'||(learn&&learn.mode
     svg+=`<line x1="${a.x}" y1="${a.y}" x2="${x}" y2="${y}"/><circle cx="${a.x}" cy="${a.y}" r="3.5"/>`;});
   for(let i=labs.length;i<3;i++)$('#lb'+i).style.display='none';
   lines.innerHTML=svg;}
-// ---- learn mode: guided steps, then a spot-the-mistake quiz
+// ---- learn mode (guided steps) and quiz mode (spot the mistake): two tools sharing the side card
 let learn=null;const learnEl=$('#learn');
+function learnTools(){setTool('tLearn',!!learn&&learn.mode==='steps');setTool('tQuiz',!!learn&&learn.mode==='quiz');}
 function stepsNow(){const G=FORMS.good,T=[G.lower,G.touch,G.press,G.lock];let t0=0;return T.map((d,i)=>{const s={n:EX.steps[i][0],t:EX.stepText[i],seg:[t0,t0+d],at:t0+d*(i===0?.6:i===2?.45:.5)};t0+=d;return s;});}
 function dots(n,i){return '<div class="dots">'+Array.from({length:n},(_,k)=>`<i class="${k<=i?'on':''}"></i>`).join('')+'</div>';}
-function enterLearn(i=0){if(flow!=='exercise')return;learn={mode:'steps',i,speed};setForm('good');learnEl.hidden=false;setTool('tLearn',true);goStep(i);}
-function exitLearn(){if(!learn)return;speed=learn.speed;learn=null;learnEl.hidden=true;setTool('tLearn',false);setForm('good');setPaused(false);}
-function goStep(i){learn.mode='steps';learn.i=i;learn.seg=null;const S=stepsNow()[i];repT=S.at;rep=1;fatigue=0;lastPhase=-1;setPaused(true);
+function enterLearn(i=0){if(flow!=='exercise')return;learn={mode:'steps',i,speed};setForm('good');learnEl.hidden=false;goStep(i);}
+function enterQuiz(){if(flow!=='exercise')return;learn={mode:'quiz',speed};learnEl.hidden=false;startQuiz();}
+function exitLearn(){if(!learn)return;speed=learn.speed;learn=null;learnEl.hidden=true;learnTools();setForm('good');setPaused(false);}
+function goStep(i){learn.mode='steps';learn.i=i;learn.seg=null;learnTools();const S=stepsNow()[i];repT=S.at;rep=1;fatigue=0;lastPhase=-1;setPaused(true);
   learnEl.innerHTML=`<span class="eyebrow">${EX.name} · step ${i+1} of 4</span>${dots(4,i)}<h3>${i+1} · ${S.n}</h3><p>${S.t}</p>
-   <div class="row"><button class="tg" data-a="play">▶ Play this step</button><button class="tg" data-a="all">▶ Whole rep</button></div>
-   <div class="row"><button class="tg" data-a="back" ${i===0?'disabled':''}>‹ Back</button><button class="tg on" data-a="next">${i<3?'Next ›':'Quiz: spot the mistake ›'}</button><button class="tg" data-a="exit">Done</button></div>`;}
-function playStep(){const S=stepsNow()[learn.i];repT=S.seg[0];learn.seg=S.seg;speed=.5;setPaused(false);}
-function playWhole(){repT=0;learn.seg=[0,repLength(FORMS.good)-.02];speed=1;setPaused(false);}
+   <div class="row"><button class="tg" data-a="back" ${i===0?'disabled':''}>‹ Back</button>${i<3?'<button class="tg on" data-a="next">Next ›</button>':''}<button class="tg${i<3?'':' on'}" data-a="exit">Done</button></div>`;}
 function startQuiz(){const ms=Object.keys(FORMS).filter(k=>k!=='good').sort(()=>Math.random()-.5);learn={...learn,mode:'quiz',qs:ms.slice(0,Math.min(3,ms.length)),qi:0,score:0};askQ();}
-function askQ(){const q=learn.qs[learn.qi];learn.answered=false;setForm(q);setPreset('quiz');setPaused(false);speed=1;
+function askQ(){const q=learn.qs[learn.qi];learn.answered=false;learnTools();setForm(q);setPreset('quiz');setPaused(false);speed=1;
   const others=Object.keys(FORMS).filter(k=>k!=='good'&&k!==q).sort(()=>Math.random()-.5).slice(0,2);
   const opts=[q,...others];if(opts.length<3)opts.push('none');opts.sort(()=>Math.random()-.5);
   learnEl.innerHTML=`<span class="eyebrow">Quiz · question ${learn.qi+1} of ${learn.qs.length}</span>${dots(learn.qs.length,learn.qi)}<h3>What’s wrong with the rep on the right?</h3>
@@ -3589,10 +3608,200 @@ function answer(o){if(learn.answered)return;learn.answered=true;const q=learn.qs
    <div class="row" style="margin-top:8px"><button class="tg on" data-a="nextq">${last?'See my score ›':'Next question ›'}</button></div>`;}
 function nextQ(){learn.qi++;if(learn.qi<learn.qs.length){askQ();return;}setForm('good');const n=learn.qs.length;
   learnEl.innerHTML=`<span class="eyebrow">Quiz done</span><h3>You spotted ${learn.score} of ${n}</h3><p>${learn.score===n?'Sharp eyes. You know what a good '+EX.name.toLowerCase()+' looks like.':'Open “Spot the mistake” to watch the ones you missed side by side, then try again.'}</p>
-   <div class="row"><button class="tg on" data-a="again">Try again</button><button class="tg" data-a="steps">Steps again</button><button class="tg" data-a="exit">Done</button></div>`;}
+   <div class="row"><button class="tg on" data-a="again">Try again</button><button class="tg" data-a="steps">Learn the steps</button><button class="tg" data-a="exit">Done</button></div>`;}
 learnEl.addEventListener('click',e=>{const b=e.target.closest('button');if(!b||!learn)return;
   if(b.dataset.o){answer(b.dataset.o);return;}
-  ({play:playStep,all:playWhole,back:()=>goStep(Math.max(0,learn.i-1)),next:()=>learn.i<3?goStep(learn.i+1):startQuiz(),exit:exitLearn,nextq:nextQ,again:startQuiz,steps:()=>goStep(0)})[b.dataset.a]?.();});
+  ({back:()=>goStep(Math.max(0,learn.i-1)),next:()=>goStep(Math.min(3,learn.i+1)),exit:exitLearn,nextq:nextQ,again:startQuiz,steps:()=>goStep(0)})[b.dataset.a]?.();});
+
+// ---------------------------------------------------------------- AI coach and the coach's memory
+// Cerebras writes what the coach says (a plan from one sentence, answers at the station, the welcome back); OpenAI Decisions,
+// when the server has a key, makes the bounded calls (which mistake matches, medical red flag, which body area).
+// Memory lives in this browser (localStorage): the sessions you trained and what you told the coach.
+// Needs server.mjs (node server.mjs). With a plain static server /api/status fails and none of this shows.
+const AI={on:false,decisions:false,model:'',hello:null,busy:false};
+const AREA_TXT={knee:'knee',lower_back:'lower back',shoulder:'shoulder',elbow:'elbow',wrist:'wrist',neck:'neck',hip:'hip',ankle:'ankle'};
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]);
+
+// ---- memory
+const MEM_KEY='muscleHouse.memory.v1';
+function memLoad(){try{const m=JSON.parse(localStorage.getItem(MEM_KEY)||'null');if(m&&m.v===1&&Array.isArray(m.sessions)&&Array.isArray(m.notes))return m;}catch(e){}return {v:1,sessions:[],notes:[]};}
+function memSave(m){try{localStorage.setItem(MEM_KEY,JSON.stringify(m));}catch(e){}renderMem();}
+function memNote(text,o={}){text=String(text||'').trim().replace(/\.$/,'');if(!text)return;const m=memLoad();
+  if(m.notes.some(n=>n.text.toLowerCase()===text.toLowerCase()))return;m.notes.push({t:Date.now(),text,area:o.area&&o.area!=='none'?o.area:null,ex:o.ex||null});m.notes=m.notes.slice(-12);memSave(m);}
+// an exercise started: add it to today's session (a new session after 3 hours, or for another muscle group)
+function memExercise(k){if(TEST||!SES.group)return;const m=memLoad(),now=Date.now();let s=m.sessions[m.sessions.length-1];
+  if(!s||now-(s.last||s.t)>3*3600e3||s.group!==SES.group.key){s={t:now,group:SES.group.key,plan:SES.plan?SES.plan.name:'',done:[]};m.sessions.push(s);}
+  s.last=now;if(SES.plan)s.plan=SES.plan.name;if(!s.done.includes(k))s.done.push(k);m.sessions=m.sessions.slice(-12);memSave(m);}
+function daysAgo(t){const a=new Date(t),b=new Date();a.setHours(0,0,0,0);b.setHours(0,0,0,0);return Math.round((b-a)/864e5);}
+const weekday=t=>new Date(t).toLocaleDateString('en-GB',{weekday:'long'});
+function whenTxt(t){const d=daysAgo(t);return d<=0?'today':d===1?'yesterday':d<7?'on '+weekday(t):d+' days ago';}
+// what the coach knows, as plain text for the prompts (days are worked out here: the model has no clock)
+function memSummary(){const m=memLoad();const L=[`Today is ${weekday(Date.now())}.`];
+  for(const s of m.sessions.slice(-5)){const g=GROUPS[s.group];L.push(`- Trained ${g?g.name.toLowerCase():s.group} ${whenTxt(s.t)} (plan "${s.plan}"): ${s.done.map(k=>EXS[k]?EXS[k].name:k).join(', ')||'nothing finished'}.`);}
+  for(const n of m.notes.slice(-8))L.push(`- Told you ${whenTxt(n.t)}${n.ex&&EXS[n.ex]?' at the '+EXS[n.ex].name.toLowerCase():''}: ${n.text}.`);
+  return L.length>1?L.join('\n'):'';}
+// the line Coach Rana opens with (AI.hello is the Cerebras version, fetched while the lifter walks in)
+function coachHello(){const def='Evening! Gym’s all ours. What are we training today?';if(AI.hello)return AI.hello;const m=memLoad();const s=m.sessions[m.sessions.length-1];if(!s)return def;
+  const g=GROUPS[s.group],n=m.notes[m.notes.length-1];
+  return `Welcome back! Last time was ${g?g.name.toLowerCase():s.group} day, ${whenTxt(s.t)}.`+(n?` You told me: ${n.text.charAt(0).toLowerCase()+n.text.slice(1)}.`:'')+' What are we training today?';}
+
+// ---- talking to the server
+async function aiPost(path,body){const r=await fetch(path,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});
+  const j=await r.json().catch(()=>({}));if(!r.ok)throw new Error(j.error||('HTTP '+r.status));return j;}
+function aiCatalog(){return {groups:Object.values(GROUPS).map(g=>({k:g.key,name:g.name,parts:g.parts})),
+  exercises:Object.values(EXS).map(e=>({k:e.key,name:e.name,group:e.group,part:e.part,eq:e.eq}))};}
+// generation speed and Cerebras's own time first; the round trip (mostly network) last
+function speedTag(t){if(!t||!t.cerebras)return '';const c=t.cerebras,s=ms=>(ms/1000).toFixed(2)+' s';
+  return `⚡ Cerebras ${c.model}`+(c.tps?` · ${c.tps.toLocaleString('en-US')} tokens/s`:'')+(c.modelMs?` · model ${s(c.modelMs)}`:'')+` · round trip ${s(c.ms)}`+(t.decisions?` · OpenAI Decisions ${s(t.decisions.ms)}`:'');}
+
+// ---- voice: speak to the coach (Chrome's speech recognition), hear the answers (speech synthesis)
+const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+let voiceOut=(()=>{try{return localStorage.getItem('muscleHouse.voice')!=='off';}catch(e){return true;}})();
+function speak(t){if(!voiceOut||!t||!window.speechSynthesis)return;try{speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(t);u.rate=1.04;
+  const vs=speechSynthesis.getVoices();const v=vs.find(v=>/en[-_]IN/i.test(v.lang))||vs.find(v=>/en[-_]GB/i.test(v.lang));if(v)u.voice=v;speechSynthesis.speak(u);}catch(e){}}
+function listen(input,btn,done){if(!SR)return;if(btn._rec){btn._rec.stop();return;}const r=new SR();r.lang=navigator.language||'en-US';r.interimResults=true;
+  btn._rec=r;btn.classList.add('on');input.value='';input.placeholder='Listening…';
+  r.onresult=e=>{let t='';for(const x of e.results)t+=x[0].transcript;input.value=t;};
+  r.onend=()=>{btn._rec=null;btn.classList.remove('on');input.placeholder=input.dataset.ph||'';if(input.value.trim())done(input.value.trim());};
+  r.onerror=()=>{btn._rec=null;btn.classList.remove('on');input.placeholder=input.dataset.ph||'';};try{r.start();}catch(e){btn._rec=null;btn.classList.remove('on');}}
+
+// ---- 1. a plan from one sentence (the "what are we training?" question)
+async function planFromText(text){if(AI.busy||!text)return;AI.busy=true;$('#aiGo').disabled=true;say('Give me a second…');
+  try{const res=await aiPost('/api/plan',{text,memory:memSummary(),...aiCatalog()});
+    if(res.remember)memNote(res.remember,{area:res.pain_area});
+    useAIPlan(res);speak(res.say);}
+  catch(e){console.warn('[coach]',e);say('I couldn’t reach my notes just now. Pick a muscle below and we’ll go.');}
+  finally{AI.busy=false;$('#aiGo').disabled=false;}}
+// the plan goes in as the group's first tab ("For you"), next to the standard plans
+function useAIPlan(res){const base=GROUPS[res.group];if(!base)return;
+  const plan={name:res.name||'For you',who:'Made for you · about '+(res.minutes||45)+' min',why:[res.say,res.why].filter(Boolean).join(' '),items:res.items.map(i=>[i.ex,i.sets,i.rest]),ai:speedTag(res.t)};
+  SES.group={...base,plans:[plan,...base.plans]};SES.plan=plan;SES.i=0;SES.done=new Set();
+  chipsEl.hidden=true;bubble.classList.remove('ask');say('',false);$('#skip').hidden=true;$('#aiIn').value='';setFlow('plan');showPlan(true);}
+$('#aiAsk').addEventListener('submit',e=>{e.preventDefault();planFromText($('#aiIn').value.trim());});
+$('#aiMic').addEventListener('click',()=>listen($('#aiIn'),$('#aiMic'),planFromText));
+
+// ---- 2. ask the coach at the station
+function exBrief(e){const F=e.forms,ms=Object.keys(F).filter(k=>k!=='good');
+  return {k:e.key,name:e.name,part:e.part,eq:e.eq,group:e.group,steps:e.stepText||[],mistakes:ms.map(k=>({k,btn:F[k].btn,short:F[k].short,wrong:F[k].wrong,now:F[k].now,later:F[k].later,fix:F[k].fix}))};}
+const WARN_Q={lowback:'I feel it in my lower back',knee:'My knees hurt on this',elbow:'My elbows ache on this',shoulder:'My shoulder hurts',neck:'My neck gets sore',wrist:'My wrists hurt',hips:'My hips come up',back:'My back takes over',chest:'I don’t feel it working'};
+function renderSugg(){if(!FORMS)return;const qs=[...new Set(Object.keys(FORMS).filter(k=>k!=='good').map(k=>WARN_Q[FORMS[k].warnAt]).filter(Boolean))].slice(0,3);qs.push('What can I do instead?');
+  $('#caSugg').innerHTML=qs.map(q=>`<button class="tg" data-q="${esc(q)}">${esc(q)}</button>`).join('');$('#caSugg').hidden=false;} // starters only: hidden once a question is asked
+function openCoach(){if(flow!=='exercise'||!AI.on)return;closePanels();$('#coachAsk').hidden=false;setTool('tCoach',true);
+  if(!$('#caLog').innerHTML){renderSugg();$('#caLog').innerHTML=`<p class="a">Tell me what you feel on the ${esc(EX.name.toLowerCase())}, or ask me anything about it.</p>`;}}
+function closeCoach(){const el=$('#coachAsk');if(!el||el.hidden)return;el.hidden=true;setTool('tCoach',false);if(SR&&$('#caMic')._rec)$('#caMic')._rec.stop();}
+async function askCoach(text){if(AI.busy||!text||!EX)return;AI.busy=true;const e=EX;$('#caIn').value='';
+  $('#caLog').innerHTML=`<p class="q">“${esc(text)}”</p><p class="a muted">Thinking…</p>`;$('#caSugg').hidden=true;
+  try{const res=await aiPost('/api/ask',{text,memory:memSummary(),ex:exBrief(e),...aiCatalog()});
+    if(EX!==e||flow!=='exercise')return; // walked off meanwhile
+    if(res.remember)memNote(res.remember,{area:res.pain_area,ex:e.key});
+    else if(res.pain_area&&AREA_TXT[res.pain_area])memNote(`Felt it in the ${AREA_TXT[res.pain_area]} on the ${e.name.toLowerCase()}`,{area:res.pain_area,ex:e.key});
+    renderAnswer(text,res,e);speak(res.say);
+    if(res.mistake&&FORMS[res.mistake])setForm(res.mistake); // the split screen: the right way next to the mistake they described
+  }catch(err){console.warn('[coach]',err);AI.lastQ=text; // usually the network: one tap sends the same question again
+    $('#caLog').innerHTML=`<p class="q">“${esc(text)}”</p><p class="a">My connection dropped for a second there.</p><div class="row"><button class="tg on" data-ca="retry">↻ Ask again</button></div>`;}
+  finally{AI.busy=false;}}
+// the answer, then (only when a mistake matched) one compact "coach's read", then small text actions and a one-line speed tag
+function renderAnswer(q,res,e){const F=e.forms,pc=p=>Math.round(p.p*100),nm=v=>v==='none'?'No form mistake':F[v]?F[v].btn:v;
+  let h=`<p class="q">“${esc(q)}”</p><p class="a">${esc(res.say)}</p>`;
+  if(res.seeDoctor)h+=`<p class="warn">⚠ Stop this exercise today and get it checked by a doctor or physio.</p>`;
+  if(res.probs&&res.probs.length){const [top,...rest]=res.probs,d=res.t&&res.t.decisions;const others=rest.filter(p=>pc(p)>0);
+    h+=`<div class="read"><span class="eyebrow">Coach’s read · OpenAI Decisions${d?' · '+(d.ms/1000).toFixed(2)+' s':''}</span>
+      <div class="bar${top.v===res.mistake?' hit':''}"><i style="width:${pc(top)}%"></i><span>${esc(nm(top.v))}</span><b>${pc(top)}%</b></div>`+
+      (others.length?`<span class="also">also ${others.map(p=>esc(nm(p.v))+' '+pc(p)+'%').join(' · ')}</span>`:'')+`</div>`;}
+  const act=[];
+  if(res.mistake&&F[res.mistake])act.push(`<button class="lnk" data-ca="good">Right way only</button>`,`<button class="lnk" data-ca="explain">Why it matters</button>`);
+  if(res.swap&&EXS[res.swap])act.push(`<button class="lnk go" data-ca="swap" data-x="${esc(res.swap)}">Switch to ${esc(EXS[res.swap].name.toLowerCase())} →</button>`);
+  if(act.length)h+=`<div class="acts">${act.join('')}</div>`;
+  const c=res.t&&res.t.cerebras;if(c)h+=`<p class="speed" title="${esc(speedTag(res.t))}">⚡ Cerebras · ${c.tps?c.tps.toLocaleString('en-US')+' tokens/s · ':''}${((c.modelMs||c.ms)/1000).toFixed(2)} s</p>`;
+  $('#caLog').innerHTML=h;$('#caSugg').hidden=true;}
+// swap the current exercise for another in today's plan (a copy: the standard plans stay as they are)
+function swapTo(k){if(!EXS[k])return;const p=SES.plan;
+  if(p&&EXK&&p.items.some(it=>it[0]===EXK)&&!p.items.some(it=>it[0]===k)){const np={...p,items:p.items.map(it=>it[0]===EXK?[k,it[1],it[2]]:it)};
+    SES.group={...SES.group,plans:SES.group.plans.map(x=>x===p?np:x)};SES.plan=np;}
+  closeCoach();goExercise(k);}
+$('#tCoach').addEventListener('click',()=>{if(!$('#coachAsk').hidden){closePanels();return;}openCoach();});
+$('#caForm').addEventListener('submit',e=>{e.preventDefault();askCoach($('#caIn').value.trim());});
+$('#caMic').addEventListener('click',()=>listen($('#caIn'),$('#caMic'),askCoach));
+$('#caSugg').addEventListener('click',e=>{const b=e.target.closest('[data-q]');if(b)askCoach(b.dataset.q);});
+$('#caLog').addEventListener('click',e=>{const b=e.target.closest('[data-ca]');if(!b)return;const a=b.dataset.ca;
+  if(a==='retry'){if(AI.lastQ)askCoach(AI.lastQ);}else if(a==='good')setForm('good');else if(a==='explain'){const f=form;closePanels();setForm(f);openMistakes();}else if(a==='swap')swapTo(b.dataset.x);});
+$('#caVoice').addEventListener('click',()=>{voiceOut=!voiceOut;try{localStorage.setItem('muscleHouse.voice',voiceOut?'on':'off');}catch(e){}renderVoice();if(!voiceOut&&window.speechSynthesis)speechSynthesis.cancel();});
+// drawn icons (emoji render as small grey blobs on Windows)
+const SPEAKER='<path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/>';
+function renderVoice(){const b=$('#caVoice');
+  b.innerHTML=`<svg viewBox="0 0 24 24" aria-hidden="true">${SPEAKER}${voiceOut?'<path d="M15.5 9a4 4 0 0 1 0 6M18.2 6.5a7.5 7.5 0 0 1 0 11"/>':'<path d="M16 9.5l5 5M21 9.5l-5 5"/>'}</svg>${voiceOut?'Voice on':'Voice off'}`;b.setAttribute('aria-pressed',voiceOut);}
+// called by startExercise: log it, and start the panel fresh at each station
+function coachExerciseStarted(k){memExercise(k);closeCoach();$('#caLog').innerHTML='';}
+
+// ---- 3. what the coach remembers (open, read, forget)
+function renderMem(){const el=$('#memPanel');if(!el)return;const m=memLoad();
+  $('#memBtn').textContent='Coach’s memory'+(m.notes.length+m.sessions.length?' · '+(m.notes.length+m.sessions.length):'');
+  if(el.hidden)return;
+  const ses=m.sessions.slice(-5).reverse().map(s=>{const g=GROUPS[s.group];return `<li><b>${esc(g?g.name:s.group)}</b>, ${esc(whenTxt(s.t))}: ${esc(s.done.map(k=>EXS[k]?EXS[k].name:k).join(', '))}</li>`;}).join('');
+  const notes=m.notes.slice().reverse().map(n=>`<li>${esc(n.text)} <small>(${esc(whenTxt(n.t))})</small></li>`).join('');
+  el.innerHTML=`<span class="eyebrow">Stays in this browser</span><h3>What I remember</h3>
+    ${notes?`<div><span class="eyebrow">You told me</span><ul>${notes}</ul></div>`:''}${ses?`<div><span class="eyebrow">Your sessions</span><ul>${ses}</ul></div>`:''}
+    ${!notes&&!ses?'<p class="small">Nothing yet. Train with me, tell me how it feels, and I’ll remember it next time.</p>':''}
+    <div class="row"><button class="tg" data-m="close">Close</button>${notes||ses?'<button class="tg" data-m="forget">Forget everything</button>':''}</div>`;}
+$('#memBtn').addEventListener('click',()=>{const el=$('#memPanel');el.hidden=!el.hidden;renderMem();});
+$('#memPanel').addEventListener('click',e=>{const b=e.target.closest('[data-m]');if(!b)return;if(b.dataset.m==='forget'){try{localStorage.removeItem(MEM_KEY);}catch(e){}AI.hello=null;}else $('#memPanel').hidden=true;renderMem();});
+
+// ---- start: only with server.mjs and a Cerebras key
+(async()=>{if(TEST)return;let s=null;try{const r=await fetch('/api/status',{cache:'no-store'});if(r.ok)s=await r.json();}catch(e){}
+  if(!s||!s.cerebras)return;AI.on=true;AI.decisions=!!s.decisions;AI.model=s.model;
+  $('#aiAsk').hidden=false;$('#tCoach').hidden=false;$('#memBtn').hidden=false;if(!SR){$('#aiMic').hidden=true;$('#caMic').hidden=true;}
+  $('#aiIn').dataset.ph=$('#aiIn').placeholder;$('#caIn').dataset.ph=$('#caIn').placeholder;renderVoice();renderMem();
+  if(memSummary())aiPost('/api/greet',{memory:memSummary()}).then(r=>{if(r&&r.say)AI.hello=r.say;}).catch(()=>{});})();
+
+// ---------------------------------------------------------------- today's progress: a ring in the bottom-right corner
+// How much of today's plan is done. Click it for the list (done, now, left) to jump to any exercise or change muscle;
+// hover an exercise for what it is, what it works and what to watch for. ringTick() (from the main loop) re-renders on change.
+const ringEl=$('#ring'),ringPanel=$('#ringPanel'),ringInfo=$('#ringInfo');let ringKey='';
+const RING_C=2*Math.PI*26; // circumference of the ring's circle (r = 26 in a 64 box)
+const canHover=matchMedia('(hover: hover)').matches;
+function ringShown(){return !!SES.plan&&!['landing','street','greet','ask'].includes(flow);}
+// each plan item: done (did it and moved on), now (at it, or on the way there), left
+function ringItems(){const p=SES.plan;if(!p)return [];const here=flow==='exercise'||flow==='entering';
+  return p.items.map(([k,sets,rest])=>({k,sets,rest,st:(k===EXK&&here)||(flow==='walking'&&pending===k)?'now':SES.done.has(k)?'done':'left'}));}
+function ringTick(){const p=SES.plan;const key=[ringShown(),flow,p&&p.name,p&&p.items.map(i=>i[0]).join(),[...SES.done].join(),EXK,pending].join('|');
+  if(key===ringKey)return;ringKey=key;renderRing();}
+function renderRing(){const on=ringShown();ringEl.hidden=!on;if(!on){closeRing();return;}
+  const it=ringItems(),n=it.length,d=it.filter(x=>x.st==='done').length,pc=n?Math.round(100*d/n):0;
+  ringEl.querySelector('.fg').style.strokeDashoffset=RING_C*(1-pc/100);
+  ringEl.querySelector('.pc').textContent=pc+'%';ringEl.querySelector('.of').textContent=d+'/'+n;
+  const next=it.find(x=>x.st!=='done');
+  ringEl.title=`${d} of ${n} done`+(next&&EXS[next.k]?` · ${next.st==='now'?'now':'next'}: ${EXS[next.k].name}`:'');
+  ringEl.setAttribute('aria-label',`Today’s plan, ${d} of ${n} exercises done. Open to switch exercise or muscle.`);
+  if(!ringPanel.hidden)renderRingPanel();}
+function renderRingPanel(){const g=SES.group,p=SES.plan;if(!g||!p)return;const it=ringItems(),d=it.filter(x=>x.st==='done').length;
+  ringPanel.innerHTML=`<div class="rpHead"><div><span class="eyebrow">Today · ${esc(g.name)} day</span><h3>${esc(p.name)}</h3></div><span class="rpCount">${d} of ${it.length} done</span></div>
+    <ol class="rpList">${it.map((x,i)=>{const e=EXS[x.k];if(!e)return '';
+      const tag=x.st==='now'?(flow==='walking'?'on the way':'now'):x.st==='done'?'done':esc(x.sets);
+      return `<li class="${x.st}"><button data-x="${esc(x.k)}" data-i="${i}"><span class="mk">${x.st==='done'?'✓':x.st==='now'?'●':i+1}</span><b>${esc(e.name)}</b><span class="tag">${tag}</span></button></li>`;}).join('')}</ol>
+    <div class="row"><button class="tg on" data-r="muscle">Change muscle</button><button class="tg" data-r="plan">Full plan</button></div>`;}
+// the hover card: what the exercise is, what it works, what to watch for
+function ringInfoHTML(x){const e=EXS[x.k],g=SES.group;const area=[].concat((g&&g.areaOf&&g.areaOf[x.k])||e.part).join(' & ');
+  const works=(e.labels||[]).map(([t,,r])=>r==='m'?t:t+' (helps)').join(' · ');
+  const watch=Object.keys(e.forms).filter(f=>f!=='good').map(f=>e.forms[f].btn).join(' · ');
+  return `<span class="eyebrow">${esc(e.eq)} · ${esc(area)}</span><h4>${esc(e.name)}</h4>${e.quip?`<p class="quip">${esc(e.quip)}</p>`:''}
+    <dl><dt>Sets</dt><dd>${esc(x.sets)} · rest ${esc(x.rest)}</dd>${works?`<dt>Works</dt><dd>${esc(works)}</dd>`:''}${watch?`<dt>Watch for</dt><dd>${esc(watch)}</dd>`:''}</dl>
+    <span class="st ${x.st}">${x.st==='done'?'✓ Done today':x.st==='now'?'● You’re on this one':'Click to go there'}</span>`;}
+function showRingInfo(btn){if(!canHover||!btn)return;const x=ringItems()[+btn.dataset.i];if(!x||!EXS[x.k])return;
+  ringInfo.innerHTML=ringInfoHTML(x);ringInfo.hidden=false;const pr=ringPanel.getBoundingClientRect(),br=btn.getBoundingClientRect();
+  if(pr.left<ringInfo.offsetWidth+26){ringInfo.hidden=true;return;} // no room beside the list (narrow window)
+  ringInfo.style.left=(pr.left-ringInfo.offsetWidth-10)+'px';ringInfo.style.top=clamp(br.top-12,70,innerHeight-ringInfo.offsetHeight-16)+'px';}
+function openRing(){closePanels();$('#memPanel').hidden=true;ringPanel.hidden=false;ringEl.classList.add('open');ringEl.setAttribute('aria-expanded','true');renderRingPanel();}
+function closeRing(){ringPanel.hidden=true;ringInfo.hidden=true;ringEl.classList.remove('open');ringEl.setAttribute('aria-expanded','false');}
+ringEl.addEventListener('click',()=>{if(!ringPanel.hidden){closeRing();return;}openRing();});
+ringPanel.addEventListener('click',e=>{const b=e.target.closest('[data-x]');
+  if(b){const k=b.dataset.x;closeRing();if(k===EXK&&(flow==='exercise'||flow==='entering'))return;$('#done').hidden=true;goExercise(k);return;}
+  const r=e.target.closest('[data-r]');if(!r)return;closeRing();$('#done').hidden=true;
+  if(r.dataset.r==='muscle'){showPlan(false);whenFree(askAgain);}else{closePanels();showPlan(true,true);}});
+ringPanel.addEventListener('mouseover',e=>showRingInfo(e.target.closest('[data-x]')));
+ringPanel.addEventListener('focusin',e=>showRingInfo(e.target.closest('[data-x]')));
+ringPanel.addEventListener('mouseleave',()=>{ringInfo.hidden=true;});
+document.addEventListener('pointerdown',e=>{if(!ringPanel.hidden&&!e.target.closest('#ringPanel,#ring'))closeRing();});
+addEventListener('keydown',e=>{if(e.code==='Escape'&&!ringPanel.hidden)closeRing();});
 
 // ---------------------------------------------------------------- main loop
 const HERO_START=V(-.4,0,8.6),INSIDE=V(0,0,-3.4),MEET=V(.25,0,-4.75);
@@ -3627,18 +3836,18 @@ function update(dtReal){const dt0=paused&&flow==='exercise'?0:dtReal;const dt=fl
     if(ft<2.6)caption('The lights know the way.');else caption('');
     if(ft>1.2&&!coach._called){coach._called=1;goTo(coach,MEET,{face:Math.atan2(INSIDE.x-MEET.x,INSIDE.z-MEET.z),done:()=>{setFlow('ask');}});}
     turnTo(hero,Math.atan2(coach.pos.x-hero.pos.x,coach.pos.z-hero.pos.z),dt,2);}
-  else if(flow==='ask'){turnTo(hero,Math.atan2(coach.pos.x-hero.pos.x,coach.pos.z-hero.pos.z),dt,3);turnTo(coach,Math.atan2(hero.pos.x-coach.pos.x,hero.pos.z-coach.pos.z),dt,3);
+  else if(flow==='ask'){if(!['walk','turn','seq'].includes((hero.act_||{}).kind))turnTo(hero,Math.atan2(coach.pos.x-hero.pos.x,coach.pos.z-hero.pos.z),dt,3); // never fight a walk or turn in progressturnTo(coach,Math.atan2(hero.pos.x-coach.pos.x,hero.pos.z-coach.pos.z),dt,3);
     const mid=V().addVectors(hero.pos,coach.pos).multiplyScalar(.5);const port=innerWidth<innerHeight; // tall screens: pull back and aim low so both people sit above the choice card
     if(port){const d=V(coach.pos.x-hero.pos.x,0,coach.pos.z-hero.pos.z).normalize();let n=V(-d.z,0,d.x);if(n.x<0)n.negate(); // a three-quarter two-shot from the open side of the room
       cam.tPos.set(mid.x+n.x*3.3-d.x*1.3,2.1,mid.z+n.z*3.3-d.z*1.3);cam.tLook.set(mid.x,.55,mid.z);}
     else{cam.tPos.set(mid.x-2.4,1.75,mid.z+1.9);cam.tLook.set(mid.x+.15,1.45,mid.z);}
-    if(ft>.4&&!SES.asked){$('#skip').hidden=true;SES.asked=1;chipsEl.hidden=false;say(SES.group?'Round two? Which muscle now?':'Evening! Gym’s all ours. What are we training today?');}}
+    if(ft>.4&&!SES.asked){$('#skip').hidden=true;SES.asked=1;chipsEl.hidden=false;say(SES.group?'Round two? Which muscle now?':coachHello());if(!SES.group&&AI.hello)speak(AI.hello);}}
   else if(flow==='plan'){const a=ft*.06;cam.tPos.set(Math.sin(a)*1.2+1.5,4.0,-1.4);cam.tLook.set(0,.4,-12.5);}
   else if(flow==='walking'){if(hero.act_.kind==='walk'||hero.act_.kind==='turn')followCam(hero,3.4,2.9,.6);
     else if(hero.act_.kind==='seq'){const a=hero.heading+2.2;cam.tPos.set(hero.pos.x+Math.sin(a)*2.4,1.7,hero.pos.z+Math.cos(a)*2.4);cam.tLook.copy(hero.pos).setY(.85);}}
   else if(flow==='exercise'){exerciseTick(dt0);}
   else if(flow==='done'){const a=ft*.1;cam.tPos.set(hero.pos.x+Math.sin(a)*3,2.2,hero.pos.z+Math.cos(a)*3);cam.tLook.copy(hero.pos).setY(1.1);}
-  updateLabels();
+  updateLabels();ringTick();
   // camera
   if(cam.orbit){const kk=Math.min(1,dtReal*4);cam.az+=(cam.taz-cam.az)*kk;cam.el+=(cam.tel-cam.el)*kk;cam.r+=(cam.tr-cam.r)*kk;
     const rr=cam.r*(innerWidth<innerHeight?1.5:1);cam.tPos.set(cam.center.x+Math.sin(cam.az)*Math.cos(cam.el)*rr,cam.center.y+Math.sin(cam.el)*rr,cam.center.z+Math.cos(cam.az)*Math.cos(cam.el)*rr);roomRay(cam.center,cam.tPos);cam.tLook.copy(cam.center);}
@@ -3650,8 +3859,10 @@ function update(dtReal){const dt0=paused&&flow==='exercise'?0:dtReal;const dt=fl
     bubble.style.left=clamp((hp.x*.5+.5)*innerWidth,190,innerWidth-190)+'px';bubble.style.top=clamp((-hp.y*.5+.5)*innerHeight,150,innerHeight-30)+'px';}}
 
 function askAgain(){setFlow('walking');walkStatus('');SES.asked=0;closePanels();
-  const meet=V(hero.pos.x,0,hero.pos.z);goTo(coach,findFree(meet,1.2),{done:()=>{coach.act_={kind:'idle'};setFlow('ask');}});}
-function findFree(p,r){for(let a=0;a<12;a++){const q=V(p.x+Math.sin(a*.52)*r,0,p.z+Math.cos(a*.52)*r);if(navFree(q.x,q.z))return q;}return p;}
+  // meet on the coach's side of the lifter, so he never has to walk round (or wait behind) the lifter to get there
+  const meet=V(hero.pos.x,0,hero.pos.z);goTo(coach,findFree(meet,1.2,Math.atan2(coach.pos.x-hero.pos.x,coach.pos.z-hero.pos.z)),{done:()=>{coach.act_={kind:'idle'};setFlow('ask');}});}
+// a free spot r from p, trying the heading a0 first, then further and further either side of it
+function findFree(p,r,a0=0){for(let i=0;i<12;i++){const a=a0+(i%2?1:-1)*Math.ceil(i/2)*.52;const q=V(p.x+Math.sin(a)*r,0,p.z+Math.cos(a)*r);if(navFree(q.x,q.z))return q;}return p;}
 function finishWorkout(){setFlow('done');const g=SES.group,p=SES.plan;const sets=p.items.reduce((t,it)=>t+(parseInt(it[1])||0),0);
   const el=$('#done');el.hidden=false;el.innerHTML=`<span class="eyebrow">${g.name} day · done</span><h2>That’s a wrap</h2>
    <p>${p.items.length} exercises, about ${sets} hard sets. Every part of the ${g.name.toLowerCase()} got a turn: ${g.parts.join(', ').toLowerCase()}.</p>
@@ -3673,7 +3884,8 @@ function startStory(){$('#landing').classList.add('out');$('#skip').hidden=false
 function skipIntro(){if(flow!=='street'&&flow!=='greet')return;$('#skip').hidden=true;lightsOn=1;caption('');hero.pos.copy(INSIDE);hero.heading=Math.PI;place(hero);hero.act_={kind:'idle'};play(hero,'idle',0);
   coach.pos.copy(MEET);coach.heading=Math.atan2(INSIDE.x-MEET.x,INSIDE.z-MEET.z);place(coach);coach.act_={kind:'idle'};play(coach,'idle',0);coach._called=1;cam.pos.set(INSIDE.x-2.4,1.75,INSIDE.z+1.6);setFlow('ask');}
 $('#go').addEventListener('click',startStory);$('#skip').addEventListener('click',skipIntro);
-addEventListener('keydown',e=>{if(flow==='exercise'){if(e.code==='Space'){setPaused(!paused);e.preventDefault();}
+addEventListener('keydown',e=>{if(e.target&&e.target.closest&&e.target.closest('input,textarea'))return; // typing to the coach
+  if(flow==='exercise'){if(e.code==='Space'){setPaused(!paused);e.preventDefault();}
   else if(e.code==='ArrowLeft'){cam.taz+=.25;e.preventDefault();}else if(e.code==='ArrowRight'){cam.taz-=.25;e.preventDefault();}
   else if(e.code==='ArrowUp'){cam.tr=clamp(cam.tr-.25,1.3,6);e.preventDefault();}else if(e.code==='ArrowDown'){cam.tr=clamp(cam.tr+.25,1.3,6);e.preventDefault();}
   else if(e.code==='Escape')closePanels();}});
@@ -3690,8 +3902,7 @@ async function boot(){try{const G={};for(const n of['lifter','coach','member']){
     hero.pos.copy(HERO_START);hero.heading=0;place(hero);play(hero,'idle',0);hero.act_={kind:'idle'};
     coach.pos.set(2.2,0,-15.2);coach.heading=Math.PI;place(coach);play(coach,'idle',0);coach.act_={kind:'idle'};
     renderChips();
-    const nEx=Object.keys(EXS).length,nM=Object.values(EXS).reduce((t,e)=>t+Object.keys(e.forms).length-1,0);
-    $('#credit').textContent=`${Object.keys(GROUPS).length} muscle groups · ${nEx} exercises · ${nM} common mistakes. People made with MakeHuman (CC0); 3D clothing by Elvaerwyn, Mindfront and punkduck (CC-BY 4.0); walking and idle motion capture from the 100STYLE dataset by Mason, Starke and Komura (CC BY 4.0).`;
+    $('#credit').textContent='People made with MakeHuman (CC0); 3D clothing by Elvaerwyn, Mindfront and punkduck (CC-BY 4.0); walking and idle motion capture from the 100STYLE dataset by Mason, Starke and Komura (CC BY 4.0).';
     $('#go').disabled=false;$('#go').textContent='Walk me in →';
     landingCam();cam.pos.copy(cam.tPos);cam.look.copy(cam.tLook);
     window.__ready=true;}catch(e){console.error(e);$('#go').textContent='The gym didn’t load. Reload the page';}}

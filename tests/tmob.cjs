@@ -16,7 +16,8 @@ const W=+(process.env.W||390),H=+(process.env.H||844),pre=process.env.PRE||'mob'
   await p.evaluate(()=>document.querySelector('.mlist button').click());await adv(2);await snap('08-split');
   await p.evaluate(()=>document.querySelector('#tMistake').click());await adv(.5);
   await p.evaluate(()=>document.querySelector('#tLearn').click());await adv(1);await snap('09-learn');
-  await p.evaluate(()=>__api.learnClick('[data-a="next"]'));await p.evaluate(()=>__api.learnClick('[data-a="next"]'));await p.evaluate(()=>__api.learnClick('[data-a="next"]'));await p.evaluate(()=>__api.learnClick('[data-a="next"]'));await adv(2);await snap('10-quiz');
-  await p.evaluate(()=>document.querySelector('#tLearn').click());await adv(.5);
+  await p.evaluate(()=>__api.learnClick('[data-a="next"]'));await p.evaluate(()=>__api.learnClick('[data-a="next"]'));await p.evaluate(()=>__api.learnClick('[data-a="next"]'));await adv(.5);
+  await p.evaluate(()=>document.querySelector('#tQuiz').click());await adv(2);await snap('10-quiz');
+  await p.evaluate(()=>document.querySelector('#tQuiz').click());await adv(.5);
   await p.evaluate(()=>document.querySelector('#planBtn')&&document.querySelector('#planBtn').click());await adv(.5);await snap('11-plan-open');
   await b.close();})();

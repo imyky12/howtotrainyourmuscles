@@ -10,11 +10,20 @@ A 3D gym in the browser. You walk in, tell Coach Rana what you're training, and 
 ## Run it
 
 ```
-cd site
-python3 -m http.server 8767
+cp .env.example .env      # put your CEREBRAS_API_KEY in it (OPENAI_API_KEY is optional)
+node server.mjs
 ```
 
 Open http://localhost:8767. The page loads three.js 0.160 from jsDelivr; the people are embedded in `lifter.js`, `coach.js` and `member.js`.
+Without a key (or with any plain static server, e.g. `cd site && python3 -m http.server 8767`) the site works as before, without the AI coach.
+
+## The AI coach
+
+- **Plan from a sentence:** at "What are we training today?", type or say "legs, sore knee, 30 minutes". Cerebras builds the plan from the 55 exercises (strict JSON, so only exercises the gym can show) and it opens as the "For you" tab.
+- **Ask the coach at the station:** "Ask coach" in the exercise tools. "My knees hurt on this" → the matching mistake plays next to the right way, with the measured numbers, the fix, and a swap if you need one. Red flags (sharp pain, numbness, swelling) get "stop and see a physio".
+- **Who does what:** Cerebras (`gpt-oss-120b`) writes everything the coach says; the speed line under each answer shows its time and tokens/s. OpenAI Decisions (`gpt-6-luna`, optional) makes the bounded calls: which mistake matches, red-flag probability, body area; its probabilities show as "The coach’s read". Without an OpenAI key, Cerebras makes those calls too.
+- **Memory:** sessions and what you told the coach stay in the browser (localStorage); the coach greets you with them and plans around them. "Coach’s memory" shows and forgets it.
+- **Code:** `server.mjs` (keys, prompts, schemas; no dependencies), `site/src/33-coach-ai.js` (UI, voice, memory).
 
 ## Change it
 
