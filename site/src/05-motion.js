@@ -16,12 +16,13 @@ function carryArms(c,ph){if(!c.carry)return;const B=c.bones;c.root.updateMatrixW
   holdUpdate(c);}
 // arms hanging at the sides holding dumbbells, swung forward/back by sw (the same arms standDB uses, so walking and standing match)
 function dbHangArms(c,sw=0){const T=torsoAxes(c);for(const s of[1,-1]){const ua=T.U.clone().negate().addScaledVector(T.L,s*.18).addScaledVector(T.F,s*sw);
-  armDir(c,sideOf(s),ua,ua,T.L.clone().multiplyScalar(-s),{hd:T.U.clone().negate(),curl:1});}}
+  armDir(c,sideOf(s),ua,ua,T.L.clone().multiplyScalar(-s),{hd:T.U.clone().negate(),curl:BAR_GRIP.curl});}}
 // held props follow the hands
 function holdUpdate(c){for(const h of c.hold){const f=handFrame(c,h.side);const p=f.p.addScaledVector(f.hd,(h.palm??.075)*D.s).addScaledVector(f.pn,(h.off??.022)*D.s);
   if(h.other){const p2=gripPoint(c,h.other);p.add(p2).multiplyScalar(.5);}
   const par=h.obj.parent;par.updateMatrixWorld(true);
-  if(h.align==='thumb'){const q=new THREE.Quaternion().setFromUnitVectors(V(1,0,0),f.tz.normalize());h.obj.quaternion.copy(par.getWorldQuaternion(new THREE.Quaternion()).invert().multiply(q));}
+  // align 'thumb' (the object's x axis) or 'knuckleY' (its y axis, a cylinder handle): the handle lies along the knuckle line, across the palm
+  if(h.align==='thumb'||h.align==='knuckleY'){const kn=wpos(c.bones[h.side+'HandIndex1']).sub(wpos(c.bones[h.side+'HandPinky1']));const q=new THREE.Quaternion().setFromUnitVectors(h.align==='knuckleY'?V(0,1,0):V(1,0,0),kn.lengthSq()>1e-6?kn.normalize():f.tz.normalize());h.obj.quaternion.copy(par.getWorldQuaternion(new THREE.Quaternion()).invert().multiply(q));}
   else if(h.align==='bar'&&h.other){const d=V().subVectors(gripPoint(c,'Left'),gripPoint(c,'Right')).normalize();const q=new THREE.Quaternion().setFromUnitVectors(V(1,0,0),d);h.obj.quaternion.copy(par.getWorldQuaternion(new THREE.Quaternion()).invert().multiply(q));}
   h.obj.position.copy(par.worldToLocal(p));}}
 function grab(c,obj,side,o={}){c.hold=c.hold.filter(h=>h.obj!==obj);c.hold.push({obj,side,...o});}
@@ -79,7 +80,10 @@ function endSeq(c){const a=c.act_;c.act_={kind:'pose'};}
 function seqTick(c,dt){const a=c.act_;const S=a.steps[a.i];if(!S)return;a.t+=dt;
   if(S.walk){const k=clamp(a.t/a.d,0,1);c.pos.lerpVectors(a.from,a.to,smooth(k));place(c);
     // the steps follow the body's eased speed (slow at the start and the stop), so the feet don't swing at full speed while the body stops
-    const v=Math.max(.35,6*k*(1-k)/1.5);if(S.land){walkSync(c,a,smooth(k),a.from.distanceTo(a.to)*(S.back?-1:1));if(!a.wk.dfix){a.wk.dfix=1;a.d=Math.max(a.d,Math.abs(a.wk.T-a.wk.t0)*1.5/1.3);}} // (a short landed step is stretched so the clip never runs faster than 1.3x: a quicker step flicks the swinging foot)else play(c,'walk',.25,(S.back?-1:1)*clamp(a.from.distanceTo(a.to)*6*k*(1-k)/a.d/WALK_STRIDE,.3,1.35)); // the clip at the body's speed (feet planted), never hurried past a brisk walkc._ph=(c._ph||0)+dt*(S.back?3:4)*v;
+    // (a short landed step is stretched so the clip never runs faster than 1.3x: a quicker step flicks the swinging foot)
+    const v=Math.max(.35,6*k*(1-k)/1.5);if(S.land){walkSync(c,a,smooth(k),a.from.distanceTo(a.to)*(S.back?-1:1));if(!a.wk.dfix){a.wk.dfix=1;a.d=Math.max(a.d,Math.abs(a.wk.T-a.wk.t0)*1.5/1.3);}}
+    else play(c,'walk',.25,(S.back?-1:1)*clamp(a.from.distanceTo(a.to)*6*k*(1-k)/a.d/WALK_STRIDE,.3,1.35)); // the clip at the body's speed (feet planted), never hurried past a brisk walk
+    c._ph=(c._ph||0)+dt*(S.back?3:4)*v;
     clipPost(c,dt);if(k>=1){play(c,'idle',.3);nextStep(c);}return;}
   if(S.turn!==undefined){if(a.h0===undefined)a.h0=Math.abs(angDiff(a.h,c.heading));const d=angDiff(a.h,c.heading);c.heading+=Math.sign(d)*Math.min(Math.abs(d),dt*3.2);place(c);
     if(S.land)walkSync(c,a,a.h0>1e-3?1-Math.abs(angDiff(a.h,c.heading))/a.h0:1,a.h0*.3);else{const fresh=c.cur!==c.act.walk;play(c,'walk',.25,.49);if(fresh)c.act.walk.time=WALK_PASS[0];}clipPost(c,dt);if(Math.abs(d)<.03&&(S.land||stepDone(c,a))){c.heading=a.h;place(c);play(c,'idle',.3);a.h0=undefined;a.pass=undefined;nextStep(c);}return;}

@@ -156,13 +156,16 @@ const sideOf=s=>s>0?'Left':'Right';
 function shoulders(c){return [wpos(c.bones.LeftArm),wpos(c.bones.RightArm)];}
 // hand on a handle: contact = centre of the handle in the palm; hd = wrist→knuckles; pn = palm normal
 function armTo(c,side,contact,o){const B=c.bones,s=side==='Left'?1:-1;
-  let hd=o.hd.clone().normalize();const S=wpos(B[side+'Arm']);
-  const solve=()=>{const pn=o.pn.clone().addScaledVector(hd,-o.pn.dot(hd)).normalize();
+  let hd=o.hd.clone().normalize();const S=wpos(B[side+'Arm']);const pn0=o.pn.clone();
+  const solve=()=>{const pn=pn0.clone().addScaledVector(hd,-pn0.dot(hd)).normalize();
     const W=contact.clone().addScaledVector(hd,-(o.palm??.075)*D.s).addScaledVector(pn,-(o.off??.022)*D.s);
     return {pn,W,E:ik2(S,W,D.arm,D.fore,o.pole)};};
   let r=solve();if(o.follow){hd=V().subVectors(contact,r.E).normalize();r=solve();}
-  aim(B[side+'Arm'],B[side+'ForeArm'],r.E);aim(B[side+'ForeArm'],B[side+'Hand'],r.W);
-  setHandWorld(B[side+'Hand'],s>0,hd,r.pn);curlHand(c,side,o.curl??1);return r;}
+  const place=()=>{aim(B[side+'Arm'],B[side+'ForeArm'],r.E);aim(B[side+'ForeArm'],B[side+'Hand'],r.W);setHandWorld(B[side+'Hand'],s>0,hd,r.pn);curlHand(c,side,o.curl??1);};place();
+  // o.grip: the handle's axis; turn (and roll) the hand so the knuckle line lies along it, same contact point in the palm
+  if(o.grip)for(let it=0;it<4;it++){const kn=wpos(B[side+'HandIndex1']).sub(wpos(B[side+'HandPinky1'])).normalize();const g=o.grip.clone().normalize();if(kn.dot(g)<0)g.negate();
+    if(kn.angleTo(g)<.02)break;const q=new THREE.Quaternion().setFromUnitVectors(kn,g);hd.applyQuaternion(q);pn0.applyQuaternion(q);r=solve();place();}
+  return r;}
 // arm by directions: upper arm along ua, forearm along fa (world), hand fingers hd (default: continue the forearm), palm pn
 function armDir(c,side,ua,fa,pn,o={}){const B=c.bones,s=side==='Left'?1:-1;const S=wpos(B[side+'Arm']);
   const E=S.clone().addScaledVector(ua.clone().normalize(),D.arm),W=E.clone().addScaledVector(fa.clone().normalize(),D.fore);

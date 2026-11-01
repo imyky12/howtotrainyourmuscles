@@ -15,4 +15,4 @@ function barFrame(which){const R=BRACK;const bar=which==='ez'?R.ez:R.straight;co
   return {g,q:qY(rot),rot,bar,y:w.y,pre:toW({g},V(0,0,-12.5)),home:{p:bar.position.clone(),parent:bar.parent}};}
 function barPickPose(c,fr,k,grip,sup=true){const g=grip||.19;const b=bendToReach(fr.y,-11.55,{z:-11.8,back:.1,hmin:fr.y<.9?28:12,maxDrop:.3,dx:Math.max(0,g-D.shx)});
   standPose(c,{z:-11.8,hinge:b.hinge,drop:b.drop,back:.1,arms:'none',stance:.13});
-  for(const s of[1,-1])armTo(c,sideOf(s),V(s*g,fr.y,-11.55),{hd:sup?V(0,-.7,-.7):V(0,-.6,.8),pn:sup?V(0,.4,-1):V(0,-1,0),pole:V(s*.5,.1,-.8),curl:k});}
+  for(const s of[1,-1])armTo(c,sideOf(s),V(s*g,fr.y,-11.55),{hd:sup?V(0,-.7,-.7):V(0,-.6,.8),pn:sup?V(0,.4,-1):V(0,-1,0),pole:V(s*.5,.1,-.8),grip:V(1,0,0),palm:BAR_GRIP.palm,off:BAR_GRIP.off,curl:k*BAR_GRIP.curl});}

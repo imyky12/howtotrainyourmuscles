@@ -107,6 +107,13 @@ button:focus-visible{outline:2px solid var(--help);outline-offset:2px}
 #hud>*{pointer-events:auto}
 #exCard{position:absolute;left:max(16px,env(safe-area-inset-left,0px));top:calc(60px + env(safe-area-inset-top,0px));padding:14px 16px;display:grid;gap:4px;width:min(330px,calc(100vw - 32px))}
 #exCard h2{margin:0;font:900 1.9rem/.95 var(--display);text-transform:uppercase;text-wrap:balance}
+#exHide{position:absolute;top:8px;right:8px;width:28px;height:28px;border-radius:50%;border:0;background:rgba(255,255,255,.12);color:inherit;font:700 16px/1 system-ui,sans-serif;cursor:pointer;display:grid;place-items:center;padding:0}
+#exHide:hover{background:rgba(255,255,255,.22)}
+#exHide:focus-visible{outline:2px solid currentColor;outline-offset:2px}
+#exCard:not(.min){padding-right:44px}
+#exCard.min{width:auto;padding:6px;gap:0}
+#exCard.min>*:not(#exHide){display:none}
+#exCard.min #exHide{position:static;font-style:italic;font-family:Georgia,serif}
 #exQuip{margin:2px 0 0;font-size:.88rem;color:#cfd3d6}
 #exMeta{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:4px}
 #rep{font:600 .8rem var(--body);color:var(--muted);font-variant-numeric:tabular-nums}
@@ -324,6 +331,7 @@ input{font:inherit;color:inherit;user-select:text;-webkit-user-select:text}
 
 <div id="hud" hidden>
   <div id="exCard" class="glass">
+    <button id="exHide" type="button" aria-expanded="true" aria-label="Hide exercise name" title="Hide exercise name">–</button>
     <span class="eyebrow" id="exEyebrow"></span>
     <h2 id="exTitle"></h2>
     <p id="exQuip"></p>
