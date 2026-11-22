@@ -45,7 +45,7 @@ function renderExerciseUI(){const e=EX;const items=SES.plan?SES.plan.items.map(i
   $('#exEyebrow').textContent=(i>=0?`${i+1} of ${items.length} · `:'')+e.eq;$('#exTitle').textContent=e.name;$('#exQuip').textContent=e.quip||'';$('#exPart').textContent=e.part;
   $('#steps').innerHTML=e.steps.map((s,j)=>`<button data-i="${j}" aria-label="Step ${j+1}: ${s[0]}"><b><i>${j+1}</i><em> · ${s[0]}</em></b><span>${s[1]}</span></button>`).join('');
   const nx=nextInPlan();$('#nextBtn').innerHTML='<span>'+(nx?'Next<span class="nxn">: '+EXS[nx].name.toLowerCase()+'</span> →':i>=0?'Finish<span class="nxn"> the workout</span> ✓':'<span class="nxn">Back to the </span>Plan')+'</span>';
-  setTool('tPause',paused);setTool('tSlow',speed<1);setTool('tMistake',false);setTool('tLearn',false);setTool('tQuiz',false);}
+  setTool('tPause',paused);setTool('tSlow',speed<1);setTool('tMistake',false);setTool('tLearn',false);setTool('tQuiz',false);setTool('tCam',false);$('#tCam').hidden=!liveSupported(e.key);liveArrived(e.key);}
 function setTool(id,on){$('#'+id).setAttribute('aria-pressed',!!on);}
 $('#nextBtn').addEventListener('click',()=>{if(flow!=='exercise')return;const nx=nextInPlan();
   if(nx)goExercise(nx);else{const inPlan=SES.plan&&SES.plan.items.some(it=>it[0]===EXK);leaveStation(()=>{if(inPlan)finishWorkout();else{setFlow('plan');showPlan(true);}});}});
@@ -56,7 +56,7 @@ $('#tLearn').addEventListener('click',()=>{if(learn&&learn.mode==='steps'){exitL
 $('#tQuiz').addEventListener('click',()=>{if(learn&&learn.mode==='quiz'){exitLearn();return;}closePanels();enterQuiz();});
 $('#steps').addEventListener('click',e=>{const b=e.target.closest('[data-i]');if(!b||flow!=='exercise')return;if(!learn){closePanels();enterLearn(+b.dataset.i);}else goStep(+b.dataset.i);});
 function setPaused(p){paused=p;setTool('tPause',p);const b=$('#tPause');b.innerHTML=p?'<i>▶</i>Play':'<i>❚❚</i>Pause';}
-function closePanels(){$('#mist').hidden=true;setTool('tMistake',false);closeCoach();if(learn)exitLearn();if(form!=='good'&&flow==='exercise')setForm('good');}
+function closePanels(){liveStop();$('#mist').hidden=true;setTool('tMistake',false);closeCoach();if(learn)exitLearn();if(form!=='good'&&flow==='exercise')setForm('good');}
 // ---- right vs wrong
 function openMistakes(){const el=$('#mist');el.hidden=false;setTool('tMistake',true);renderMistakes();}
 function renderMistakes(){const el=$('#mist');const ms=Object.keys(FORMS).filter(k=>k!=='good');const F=FORMS[form];

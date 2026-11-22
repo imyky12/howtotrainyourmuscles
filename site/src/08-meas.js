@@ -23,6 +23,7 @@ Object.assign(MEAS,{
   startOpen:{at:'bottom',get:c=>-(c._phi||0)/DEG,fmt:v=>'arms open to '+Math.round(v)+'° behind the body'},
   sag:{pick:'abs',get:c=>{const H=wpos(c.bones.Hips),S=c._S,T=c._T.clone().add(V(0,.12*D.s,-.05));const t=clamp((H.z-S.z)/(T.z-S.z),0,1);return (lerp(S.y,T.y,t)-H.y)*100;},
     fmt:v=>Math.abs(v)<4?'body in one straight line':v>0?'hips '+Math.round(v)+' cm too low':'hips '+Math.round(-v)+' cm too high'},
+  pushDepth:{at:'bottom',get:c=>c._S?c._S.y*100:0,fmt:v=>v<26?'chest about 5 cm from the floor':'shoulders stop '+Math.round(v)+' cm off the floor'}, // push-up: shoulder height at the bottom
   dipDepth:{at:'bottom',get:c=>{let t=0;for(const sd of['Left','Right'])t+=wpos(c.bones[sd+'Arm']).y-wpos(c.bones[sd+'ForeArm']).y;return t/2*100;},
     fmt:v=>v>-6.5?'upper arms about level with the floor':'shoulders '+Math.round(-v)+' cm below the elbows'},
   shrug:{pick:'max',get:c=>{const up=V(0,1,0).applyQuaternion(c.root.getWorldQuaternion(new THREE.Quaternion()));return (V().subVectors(wpos(c.bones.LeftArm),wpos(c.bones.Neck)).dot(up)-D.shrug0)*100;},fmt:v=>v<2.5?'shoulders down, away from the ears':'shoulders '+Math.round(v)+' cm up toward the ears'},
