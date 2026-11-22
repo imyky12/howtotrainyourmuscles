@@ -19,7 +19,7 @@ defGroup('chest',{name:'Chest',sub:'upper, middle, lower',line:'Chest day. The m
 // ---------------------------------------------------------------- UI: coach question, plan sheet, HUD
 function renderChips(){chipsEl.innerHTML=Object.values(GROUPS).map(g=>`<button data-g="${g.key}">${g.name}<small>${g.sub}</small></button>`).join('');}
 chipsEl.addEventListener('click',e=>{const b=e.target.closest('[data-g]');if(b)chooseGroup(b.dataset.g);});
-function chooseGroup(k){const g=GROUPS[k];SES.group=g;SES.plan=g.plans[0];SES.i=0;SES.done=new Set();chipsEl.hidden=true;bubble.classList.remove('ask');sayFor(g.line,3.5);$('#skip').hidden=true;
+function chooseGroup(k){const g=GROUPS[k];track('muscle_chosen',{muscle:k});SES.group=g;SES.plan=g.plans[0];SES.i=0;SES.done=new Set();chipsEl.hidden=true;bubble.classList.remove('ask');sayFor(g.line,3.5);$('#skip').hidden=true;
   setFlow('plan');showPlan(true);}
 function showPlan(on,asPopup){const el=$('#plan');el.hidden=!on;if(!on)return;const g=SES.group;
   $('#planEyebrow').textContent='Today · '+g.name+' day';
@@ -58,7 +58,7 @@ $('#steps').addEventListener('click',e=>{const b=e.target.closest('[data-i]');if
 function setPaused(p){paused=p;setTool('tPause',p);const b=$('#tPause');b.innerHTML=p?'<i>▶</i>Play':'<i>❚❚</i>Pause';}
 function closePanels(){liveStop();$('#mist').hidden=true;setTool('tMistake',false);closeCoach();if(learn)exitLearn();if(form!=='good'&&flow==='exercise')setForm('good');}
 // ---- right vs wrong
-function openMistakes(){const el=$('#mist');el.hidden=false;setTool('tMistake',true);renderMistakes();}
+function openMistakes(){track('mistakes_opened',{exercise:EXK});const el=$('#mist');el.hidden=false;setTool('tMistake',true);renderMistakes();}
 function renderMistakes(){const el=$('#mist');const ms=Object.keys(FORMS).filter(k=>k!=='good');const F=FORMS[form];
   el.innerHTML=`<span class="eyebrow">${EX.name} · ${ms.length} common mistakes</span><h3>Spot the mistake</h3>
    <div class="mlist">${ms.map(k=>`<button data-f="${k}" aria-pressed="${form===k}"><b>${FORMS[k].btn}</b><span>${FORMS[k].short}</span></button>`).join('')}

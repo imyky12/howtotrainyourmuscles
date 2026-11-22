@@ -1,6 +1,19 @@
+<html lang="en">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Muscle House</title>
+<title>Train Your Muscles: Learn Every Gym Exercise in 3D</title>
+<meta name="description" content="Learn how to train every muscle with a free 3D gym: 55 exercises with step-by-step form, the common mistakes and how to fix them, ready-made workout plans and an AI coach.">
+<link rel="canonical" href="https://trainyourmuscles.site/">
+<meta name="theme-color" content="#07090b">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Train Your Muscles">
+<meta property="og:title" content="Train Your Muscles: Learn Every Gym Exercise in 3D">
+<meta property="og:description" content="Learn how to train every muscle with a free 3D gym: 55 exercises with step-by-step form, the common mistakes and how to fix them, ready-made workout plans and an AI coach.">
+<meta property="og:url" content="https://trainyourmuscles.site/">
+<meta name="twitter:card" content="summary">
+<script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"WebSite","@id":"https://trainyourmuscles.site/#site","name":"Train Your Muscles","url":"https://trainyourmuscles.site/","description":"Learn how to train every muscle with a free 3D gym: 55 exercises with step-by-step form, the common mistakes and how to fix them, ready-made workout plans and an AI coach."},{"@type":"WebApplication","name":"Train Your Muscles","url":"https://trainyourmuscles.site/","applicationCategory":"HealthApplication","operatingSystem":"Any (web browser)","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"description":"Learn how to train every muscle with a free 3D gym: 55 exercises with step-by-step form, the common mistakes and how to fix them, ready-made workout plans and an AI coach."}]}</script>
+<!--analytics-->
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;800;900&family=Figtree:wght@400;500;600;700&display=swap">
 <style>
@@ -32,6 +45,7 @@ button:focus-visible{outline:2px solid var(--help);outline-offset:2px}
 .btn.ghost{background:transparent;color:var(--ink);border:1px solid var(--line)}
 .btn.sm{padding:9px 14px;font-size:.85rem}
 .eyebrow{font:600 .72rem var(--body);letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+#landing .lib{margin:-14px 0 0;font-size:.88rem}#landing .lib a{color:var(--muted);text-decoration:underline;text-underline-offset:3px}#landing .lib a:hover{color:var(--ink)}
 .fade{transition:opacity .45s,transform .45s}.fade.out{opacity:0;transform:translateY(8px);pointer-events:none}
 
 /* landing */
@@ -327,13 +341,15 @@ input{font:inherit;color:inherit;user-select:text;-webkit-user-select:text}
   <div class="lcard">
     <h1>Your muscles called. <em>They want a plan.</em></h1>
     <div><button class="btn" id="go" disabled>Warming up…</button></div>
+    <p class="lib"><a href="/exercises">Or read how to do all 55 exercises →</a></p>
+    <noscript><p>The 3D gym needs JavaScript. You can still <a href="/exercises">read every exercise guide</a>.</p></noscript>
   </div>
   <!-- CC-BY 4.0 assets (clothing, motion capture) need visible attribution: kept here, folded away -->
   <details class="credits"><summary>Credits</summary><p class="credit" id="credit"></p></details>
 </section>
 
 <header id="top">
-  <div class="brand">Muscle <span>House</span></div>
+  <div class="brand">Train Your <span>Muscles</span></div>
   <div class="prow"><button class="pill glass" id="memBtn" hidden>Coach’s memory</button><button class="pill glass" id="planBtn" hidden>Today’s plan</button><button class="pill glass" id="skip" hidden>Skip intro</button></div>
 </header>
 <aside id="memPanel" class="glass" hidden aria-live="polite"></aside>

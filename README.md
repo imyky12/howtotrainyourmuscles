@@ -1,4 +1,4 @@
-# Muscle House
+# Train Your Muscles
 
 A 3D gym in the browser. You walk in, tell Coach Rana what you're training, and get today's plan. Then you watch every exercise done the right way and the wrong way, with the working muscles lit up.
 
@@ -16,6 +16,12 @@ node server.mjs
 
 Open http://localhost:8767. The page loads three.js 0.160 from jsDelivr; the people are embedded in `lifter.js`, `coach.js` and `member.js`.
 Without a key (or with any plain static server, e.g. `cd site && python3 -m http.server 8767`) the site works as before, without the AI coach.
+
+## Deploy, analytics and SEO
+
+Live at https://trainyourmuscles.site. Hosting (Render), the domain, PostHog, Google Analytics and Search Console are set up as described in [DEPLOY.md](DEPLOY.md).
+
+`site/build.sh` also builds the pages search engines read, from the same exercise data the 3D app uses (`seo/build.mjs`): a guide for each exercise at `/exercises/<name>`, one page per muscle group at `/muscles/<group>`, the library at `/exercises`, `sitemap.xml` and `robots.txt`. Each guide links into the 3D gym with `/?ex=<key>` (or `/?muscle=<group>`). Analytics only switch on when `POSTHOG_KEY` / `GA_ID` are set in the environment.
 
 ## The AI coach
 

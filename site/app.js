@@ -3461,7 +3461,7 @@ function coachSpotOf(e){const st=STATIONS[e.station],cs=e.coachSpot;const c=toW(
   best=best||cands[0];return {p:best,h:Math.atan2(c.x-best.x,c.z-best.z)};}
 function coachTo(e,done){const s=coachSpotOf(e);goTo(coach,s.p,{face:s.h,speed:WALK_SPEED*1.04,done});}
 function walkStatus(t){$('#walk').hidden=!t;$('#walkTxt').textContent=t||'';}
-function goExercise(k){const e=EXS[k];if(!e)return;closePanels();showPlan(false);pending=k;SES.i=Math.max(0,SES.plan?SES.plan.items.findIndex(it=>it[0]===k):0);renderPlanList();
+function goExercise(k){const e=EXS[k];if(!e)return;track('exercise_opened',{exercise:k,muscle:e.group});closePanels();showPlan(false);pending=k;SES.i=Math.max(0,SES.plan?SES.plan.items.findIndex(it=>it[0]===k):0);renderPlanList();
   // e.prep(e,next): something done empty-handed before fetching the gear (setting a bench's angle)
   const isBar=e.needs==='bar'||e.needs==='ez';const go=()=>{if(isBar)fetchBar(e,()=>approach(e));else if(e.needs)fetchDB(e,()=>approach(e));else approach(e);};
   const start=()=>e.prep?e.prep(e,go):go();
@@ -3563,7 +3563,7 @@ defGroup('chest',{name:'Chest',sub:'upper, middle, lower',line:'Chest day. The m
 // ---------------------------------------------------------------- UI: coach question, plan sheet, HUD
 function renderChips(){chipsEl.innerHTML=Object.values(GROUPS).map(g=>`<button data-g="${g.key}">${g.name}<small>${g.sub}</small></button>`).join('');}
 chipsEl.addEventListener('click',e=>{const b=e.target.closest('[data-g]');if(b)chooseGroup(b.dataset.g);});
-function chooseGroup(k){const g=GROUPS[k];SES.group=g;SES.plan=g.plans[0];SES.i=0;SES.done=new Set();chipsEl.hidden=true;bubble.classList.remove('ask');sayFor(g.line,3.5);$('#skip').hidden=true;
+function chooseGroup(k){const g=GROUPS[k];track('muscle_chosen',{muscle:k});SES.group=g;SES.plan=g.plans[0];SES.i=0;SES.done=new Set();chipsEl.hidden=true;bubble.classList.remove('ask');sayFor(g.line,3.5);$('#skip').hidden=true;
   setFlow('plan');showPlan(true);}
 function showPlan(on,asPopup){const el=$('#plan');el.hidden=!on;if(!on)return;const g=SES.group;
   $('#planEyebrow').textContent='Today · '+g.name+' day';
@@ -3602,7 +3602,7 @@ $('#steps').addEventListener('click',e=>{const b=e.target.closest('[data-i]');if
 function setPaused(p){paused=p;setTool('tPause',p);const b=$('#tPause');b.innerHTML=p?'<i>▶</i>Play':'<i>❚❚</i>Pause';}
 function closePanels(){liveStop();$('#mist').hidden=true;setTool('tMistake',false);closeCoach();if(learn)exitLearn();if(form!=='good'&&flow==='exercise')setForm('good');}
 // ---- right vs wrong
-function openMistakes(){const el=$('#mist');el.hidden=false;setTool('tMistake',true);renderMistakes();}
+function openMistakes(){track('mistakes_opened',{exercise:EXK});const el=$('#mist');el.hidden=false;setTool('tMistake',true);renderMistakes();}
 function renderMistakes(){const el=$('#mist');const ms=Object.keys(FORMS).filter(k=>k!=='good');const F=FORMS[form];
   el.innerHTML=`<span class="eyebrow">${EX.name} · ${ms.length} common mistakes</span><h3>Spot the mistake</h3>
    <div class="mlist">${ms.map(k=>`<button data-f="${k}" aria-pressed="${form===k}"><b>${FORMS[k].btn}</b><span>${FORMS[k].short}</span></button>`).join('')}
@@ -3751,8 +3751,8 @@ let learn=null;const learnEl=$('#learn');
 function learnTools(){setTool('tLearn',!!learn&&learn.mode==='steps');setTool('tQuiz',!!learn&&learn.mode==='quiz');}
 function stepsNow(){const G=FORMS.good,T=[G.lower,G.touch,G.press,G.lock];let t0=0;return T.map((d,i)=>{const s={n:EX.steps[i][0],t:EX.stepText[i],seg:[t0,t0+d],at:t0+d*(i===0?.6:i===2?.45:.5)};t0+=d;return s;});}
 function dots(n,i){return '<div class="dots">'+Array.from({length:n},(_,k)=>`<i class="${k<=i?'on':''}"></i>`).join('')+'</div>';}
-function enterLearn(i=0){if(flow!=='exercise')return;learn={mode:'steps',i,speed};setForm('good');learnEl.hidden=false;goStep(i);}
-function enterQuiz(){if(flow!=='exercise')return;learn={mode:'quiz',speed};learnEl.hidden=false;startQuiz();}
+function enterLearn(i=0){if(flow!=='exercise')return;track('steps_opened',{exercise:EXK});learn={mode:'steps',i,speed};setForm('good');learnEl.hidden=false;goStep(i);}
+function enterQuiz(){if(flow!=='exercise')return;track('quiz_started',{exercise:EXK});learn={mode:'quiz',speed};learnEl.hidden=false;startQuiz();}
 function exitLearn(){if(!learn)return;speed=learn.speed;learn=null;learnEl.hidden=true;learnTools();setForm('good');setPaused(false);}
 function goStep(i){learn.mode='steps';learn.i=i;learn.seg=null;learnTools();const S=stepsNow()[i];repT=S.at;rep=1;fatigue=0;lastPhase=-1;setPaused(true);
   learnEl.innerHTML=`<span class="eyebrow">${EX.name} · step ${i+1} of 4</span>${dots(4,i)}<h3>${i+1} · ${S.n}</h3><p>${S.t}</p>
@@ -3861,7 +3861,7 @@ function renderSugg(){if(!FORMS)return;const qs=[...new Set(Object.keys(FORMS).f
 function openCoach(){if(flow!=='exercise'||!AI.on)return;closePanels();$('#coachAsk').hidden=false;setTool('tCoach',true);
   if(!$('#caLog').innerHTML){renderSugg();$('#caLog').innerHTML=`<p class="a">Tell me what you feel on the ${esc(EX.name.toLowerCase())}, or ask me anything about it.</p>`;}}
 function closeCoach(){const el=$('#coachAsk');if(!el||el.hidden)return;el.hidden=true;setTool('tCoach',false);if(SR&&$('#caMic')._rec)$('#caMic')._rec.stop();}
-async function askCoach(text){if(AI.busy||!text||!EX)return;AI.busy=true;const e=EX;$('#caIn').value='';
+async function askCoach(text){if(AI.busy||!text||!EX)return;track('coach_asked',{exercise:EXK});AI.busy=true;const e=EX;$('#caIn').value='';
   $('#caLog').innerHTML=`<p class="q">“${esc(text)}”</p><p class="a muted">Thinking…</p>`;$('#caSugg').hidden=true;
   try{const res=await aiPost('/api/ask',{text,memory:memSummary(),ex:exBrief(e),...aiCatalog()});
     if(EX!==e||flow!=='exercise')return; // walked off meanwhile
@@ -4119,7 +4119,7 @@ function liveTick(){const L=LIVE;if(!LIVE_EX[EXK])return anyTick();if(!L.T)L.T=l
   L.uiT=(L.uiT||0)+dt;if(L.uiT>.12){L.uiT=0;renderLiveStats();}}
 
 // ---- the camera (or a video file)
-async function liveStart(file){const L=LIVE;if(L.phase==='load'||L.phase==='run')return;
+async function liveStart(file){const L=LIVE;if(L.phase==='load'||L.phase==='run')return;track('form_check_started',{exercise:EXK,video:!!file});
   if(!file)lvSay('Step back so I can see you from head to feet.'); // said in the tap: phones only let a page talk after a tap
   Object.assign(L,{phase:'load',src:file?'file':'cam',reps:[],rep:null,st:'find',P:null,Q:null,up:null,u2:null,cave0:null,warn:null,m:null,seenT:undefined,lastRepT:0,ending:false,msg:'',twinK:0});anyReset();
   renderLive();liveMsg(file?'Loading the pose model…':'Allow the camera, then step back…');
@@ -4420,6 +4420,13 @@ function anyLegend(){const X=LIVE.X;return `Angles in degrees from the camera pi
   Object.values(X.ext).map(x=>`${x.name}_*_${x.unit}: ${x.info}.`).join(' ')+' '+
   X.checks.filter(c=>!c.tempo).map(c=>`${lvName(c)}: right way ${Math.round(c.g)}, "${FORMS[c.k].btn}" ${Math.round(c.f)}.`).join(' ');}
 const lvName=c=>c.key==='lean'?'torso_tilt_'+c.w+'_deg':LIVE.X.ext[c.key]?LIVE.X.ext[c.key].name+'_'+c.w+'_'+LIVE.X.ext[c.key].unit:c.key.slice(0,-1)+'_'+c.w+'_deg';
+// ---------------------------------------------------------------- deep links and analytics
+// Deep links from the exercise pages: /?ex=bbFlat opens that exercise, /?muscle=chest opens that day's plan.
+const DEEP=(()=>{const q=new URLSearchParams(location.search),ex=q.get('ex'),m=q.get('muscle');
+  if(ex&&EXS[ex])return {ex,group:EXS[ex].group};if(m&&GROUPS[m])return {group:m};return null;})();
+if(DEEP&&!LV_DEEP)$('#go').addEventListener('click',()=>setTimeout(()=>{skipIntro();chooseGroup(DEEP.group);if(DEEP.ex)goExercise(DEEP.ex);},0)); // after the story starts
+// One call sends an event to whichever analytics the server switched on (PostHog, Google Analytics); a no-op when neither is.
+function track(name,props){try{if(window.posthog&&posthog.capture)posthog.capture(name,props);if(window.gtag)gtag('event',name,props||{});}catch(e){}}
 
 // ---------------------------------------------------------------- main loop
 const HERO_START=V(-.4,0,8.6),INSIDE=V(0,0,-3.4),MEET=V(.25,0,-4.75);
@@ -4481,7 +4488,7 @@ function askAgain(){setFlow('walking');walkStatus('');SES.asked=0;closePanels();
   const meet=V(hero.pos.x,0,hero.pos.z);goTo(coach,findFree(meet,1.2,Math.atan2(coach.pos.x-hero.pos.x,coach.pos.z-hero.pos.z)),{done:()=>{coach.act_={kind:'idle'};setFlow('ask');}});}
 // a free spot r from p, trying the heading a0 first, then further and further either side of it
 function findFree(p,r,a0=0){for(let i=0;i<12;i++){const a=a0+(i%2?1:-1)*Math.ceil(i/2)*.52;const q=V(p.x+Math.sin(a)*r,0,p.z+Math.cos(a)*r);if(navFree(q.x,q.z))return q;}return p;}
-function finishWorkout(){setFlow('done');const g=SES.group,p=SES.plan;const sets=p.items.reduce((t,it)=>t+(parseInt(it[1])||0),0);
+function finishWorkout(){setFlow('done');const g=SES.group,p=SES.plan;track('workout_finished',{muscle:g&&g.key,plan:p&&p.name});const sets=p.items.reduce((t,it)=>t+(parseInt(it[1])||0),0);
   const el=$('#done');el.hidden=false;el.innerHTML=`<span class="eyebrow">${g.name} day · done</span><h2>That’s a wrap</h2>
    <p>${p.items.length} exercises, about ${sets} hard sets. Every part of the ${g.name.toLowerCase()} got a turn: ${g.parts.join(', ').toLowerCase()}.</p>
    <p style="color:var(--muted)">Muscles grow while you rest. Train this group again in 2–3 days.</p>
@@ -4495,7 +4502,7 @@ function landingCam(){const h=hero.pos,wide=innerWidth>760&&innerWidth>innerHeig
 let STREET=null;
 function streetFrame(){if(!STREET){const g=new THREE.Group();scene.add(g);g.updateMatrixWorld(true);STREET={g,q:qY(0),rot:0};}return STREET;}
 let swing=null; // camera arc from the landing view (in front of the hero) round to behind them
-function startStory(){$('#landing').classList.add('out');$('#skip').hidden=false;setFlow('street');
+function startStory(){track('walk_in',DEEP||{});$('#landing').classList.add('out');$('#skip').hidden=false;setFlow('street');
   const d=V().subVectors(cam.pos,hero.pos);swing={a0:Math.atan2(d.x,d.z),r:Math.hypot(d.x,d.z),y:cam.pos.y,t:0};
   // turn round the way people do when they head off the other way: walk a tight half circle toward the door, on the
   // motion-captured walk the whole time (a turn on the spot read as robotic); if the curve is blocked, turn on the spot as before
@@ -4532,7 +4539,7 @@ async function boot(){try{const G={};for(const n of['lifter','coach','member']){
     coach.pos.set(2.2,0,-15.2);coach.heading=Math.PI;place(coach);play(coach,'idle',0);coach.act_={kind:'idle'};
     renderChips();
     $('#credit').textContent='People made with MakeHuman (CC0); 3D clothing by Elvaerwyn, Mindfront and punkduck (CC-BY 4.0); walking and idle motion capture from the 100STYLE dataset by Mason, Starke and Komura (CC BY 4.0); camera form check by MediaPipe Pose Landmarker, Google (Apache 2.0).';
-    $('#go').disabled=false;$('#go').textContent=LV_DEEP?'Check my '+EXS[LV_DEEP].name.toLowerCase()+' →':'Walk me in →';
+    $('#go').disabled=false;$('#go').textContent=LV_DEEP?'Check my '+EXS[LV_DEEP].name.toLowerCase()+' →':DEEP?'Show me '+(DEEP.ex?'the '+EXS[DEEP.ex].name.toLowerCase():GROUPS[DEEP.group].name.toLowerCase()+' day')+' →':'Walk me in →';
     landingCam();cam.pos.copy(cam.tPos);cam.look.copy(cam.tLook);
     window.__ready=true;}catch(e){console.error(e);$('#go').textContent='The gym didn’t load. Reload the page';}}
 if(!/[?&]paint/.test(location.search))boot();
