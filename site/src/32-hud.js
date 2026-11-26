@@ -87,8 +87,8 @@ let learn=null;const learnEl=$('#learn');
 function learnTools(){setTool('tLearn',!!learn&&learn.mode==='steps');setTool('tQuiz',!!learn&&learn.mode==='quiz');}
 function stepsNow(){const G=FORMS.good,T=[G.lower,G.touch,G.press,G.lock];let t0=0;return T.map((d,i)=>{const s={n:EX.steps[i][0],t:EX.stepText[i],seg:[t0,t0+d],at:t0+d*(i===0?.6:i===2?.45:.5)};t0+=d;return s;});}
 function dots(n,i){return '<div class="dots">'+Array.from({length:n},(_,k)=>`<i class="${k<=i?'on':''}"></i>`).join('')+'</div>';}
-function enterLearn(i=0){if(flow!=='exercise')return;learn={mode:'steps',i,speed};setForm('good');learnEl.hidden=false;goStep(i);}
-function enterQuiz(){if(flow!=='exercise')return;learn={mode:'quiz',speed};learnEl.hidden=false;startQuiz();}
+function enterLearn(i=0){if(flow!=='exercise')return;track('steps_opened',{exercise:EXK});learn={mode:'steps',i,speed};setForm('good');learnEl.hidden=false;goStep(i);}
+function enterQuiz(){if(flow!=='exercise')return;track('quiz_started',{exercise:EXK});learn={mode:'quiz',speed};learnEl.hidden=false;startQuiz();}
 function exitLearn(){if(!learn)return;speed=learn.speed;learn=null;learnEl.hidden=true;learnTools();setForm('good');setPaused(false);}
 function goStep(i){learn.mode='steps';learn.i=i;learn.seg=null;learnTools();const S=stepsNow()[i];repT=S.at;rep=1;fatigue=0;lastPhase=-1;setPaused(true);
   learnEl.innerHTML=`<span class="eyebrow">${EX.name} · step ${i+1} of 4</span>${dots(4,i)}<h3>${i+1} · ${S.n}</h3><p>${S.t}</p>

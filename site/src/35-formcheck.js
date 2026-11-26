@@ -143,7 +143,7 @@ function liveTick(){const L=LIVE;if(!LIVE_EX[EXK])return anyTick();if(!L.T)L.T=l
   L.uiT=(L.uiT||0)+dt;if(L.uiT>.12){L.uiT=0;renderLiveStats();}}
 
 // ---- the camera (or a video file)
-async function liveStart(file){const L=LIVE;if(L.phase==='load'||L.phase==='run')return;
+async function liveStart(file){const L=LIVE;if(L.phase==='load'||L.phase==='run')return;track('form_check_started',{exercise:EXK,video:!!file});
   if(!file)lvSay('Step back so I can see you from head to feet.'); // said in the tap: phones only let a page talk after a tap
   Object.assign(L,{phase:'load',src:file?'file':'cam',reps:[],rep:null,st:'find',P:null,Q:null,up:null,u2:null,cave0:null,warn:null,m:null,seenT:undefined,lastRepT:0,ending:false,msg:'',twinK:0});anyReset();
   renderLive();liveMsg(file?'Loading the pose model…':'Allow the camera, then step back…');

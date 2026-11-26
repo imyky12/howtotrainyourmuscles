@@ -52,7 +52,7 @@ function coachSpotOf(e){const st=STATIONS[e.station],cs=e.coachSpot;const c=toW(
   best=best||cands[0];return {p:best,h:Math.atan2(c.x-best.x,c.z-best.z)};}
 function coachTo(e,done){const s=coachSpotOf(e);goTo(coach,s.p,{face:s.h,speed:WALK_SPEED*1.04,done});}
 function walkStatus(t){$('#walk').hidden=!t;$('#walkTxt').textContent=t||'';}
-function goExercise(k){const e=EXS[k];if(!e)return;closePanels();showPlan(false);pending=k;SES.i=Math.max(0,SES.plan?SES.plan.items.findIndex(it=>it[0]===k):0);renderPlanList();
+function goExercise(k){const e=EXS[k];if(!e)return;track('exercise_opened',{exercise:k,muscle:e.group});closePanels();showPlan(false);pending=k;SES.i=Math.max(0,SES.plan?SES.plan.items.findIndex(it=>it[0]===k):0);renderPlanList();
   // e.prep(e,next): something done empty-handed before fetching the gear (setting a bench's angle)
   const isBar=e.needs==='bar'||e.needs==='ez';const go=()=>{if(isBar)fetchBar(e,()=>approach(e));else if(e.needs)fetchDB(e,()=>approach(e));else approach(e);};
   const start=()=>e.prep?e.prep(e,go):go();

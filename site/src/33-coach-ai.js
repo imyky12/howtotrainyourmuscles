@@ -78,7 +78,7 @@ function renderSugg(){if(!FORMS)return;const qs=[...new Set(Object.keys(FORMS).f
 function openCoach(){if(flow!=='exercise'||!AI.on)return;closePanels();$('#coachAsk').hidden=false;setTool('tCoach',true);
   if(!$('#caLog').innerHTML){renderSugg();$('#caLog').innerHTML=`<p class="a">Tell me what you feel on the ${esc(EX.name.toLowerCase())}, or ask me anything about it.</p>`;}}
 function closeCoach(){const el=$('#coachAsk');if(!el||el.hidden)return;el.hidden=true;setTool('tCoach',false);if(SR&&$('#caMic')._rec)$('#caMic')._rec.stop();}
-async function askCoach(text){if(AI.busy||!text||!EX)return;AI.busy=true;const e=EX;$('#caIn').value='';
+async function askCoach(text){if(AI.busy||!text||!EX)return;track('coach_asked',{exercise:EXK});AI.busy=true;const e=EX;$('#caIn').value='';
   $('#caLog').innerHTML=`<p class="q">“${esc(text)}”</p><p class="a muted">Thinking…</p>`;$('#caSugg').hidden=true;
   try{const res=await aiPost('/api/ask',{text,memory:memSummary(),ex:exBrief(e),...aiCatalog()});
     if(EX!==e||flow!=='exercise')return; // walked off meanwhile

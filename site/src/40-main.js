@@ -59,7 +59,7 @@ function askAgain(){setFlow('walking');walkStatus('');SES.asked=0;closePanels();
   const meet=V(hero.pos.x,0,hero.pos.z);goTo(coach,findFree(meet,1.2,Math.atan2(coach.pos.x-hero.pos.x,coach.pos.z-hero.pos.z)),{done:()=>{coach.act_={kind:'idle'};setFlow('ask');}});}
 // a free spot r from p, trying the heading a0 first, then further and further either side of it
 function findFree(p,r,a0=0){for(let i=0;i<12;i++){const a=a0+(i%2?1:-1)*Math.ceil(i/2)*.52;const q=V(p.x+Math.sin(a)*r,0,p.z+Math.cos(a)*r);if(navFree(q.x,q.z))return q;}return p;}
-function finishWorkout(){setFlow('done');const g=SES.group,p=SES.plan;const sets=p.items.reduce((t,it)=>t+(parseInt(it[1])||0),0);
+function finishWorkout(){setFlow('done');const g=SES.group,p=SES.plan;track('workout_finished',{muscle:g&&g.key,plan:p&&p.name});const sets=p.items.reduce((t,it)=>t+(parseInt(it[1])||0),0);
   const el=$('#done');el.hidden=false;el.innerHTML=`<span class="eyebrow">${g.name} day · done</span><h2>That’s a wrap</h2>
    <p>${p.items.length} exercises, about ${sets} hard sets. Every part of the ${g.name.toLowerCase()} got a turn: ${g.parts.join(', ').toLowerCase()}.</p>
    <p style="color:var(--muted)">Muscles grow while you rest. Train this group again in 2–3 days.</p>
@@ -73,7 +73,7 @@ function landingCam(){const h=hero.pos,wide=innerWidth>760&&innerWidth>innerHeig
 let STREET=null;
 function streetFrame(){if(!STREET){const g=new THREE.Group();scene.add(g);g.updateMatrixWorld(true);STREET={g,q:qY(0),rot:0};}return STREET;}
 let swing=null; // camera arc from the landing view (in front of the hero) round to behind them
-function startStory(){$('#landing').classList.add('out');$('#skip').hidden=false;setFlow('street');
+function startStory(){track('walk_in',DEEP||{});$('#landing').classList.add('out');$('#skip').hidden=false;setFlow('street');
   const d=V().subVectors(cam.pos,hero.pos);swing={a0:Math.atan2(d.x,d.z),r:Math.hypot(d.x,d.z),y:cam.pos.y,t:0};
   // turn round the way people do when they head off the other way: walk a tight half circle toward the door, on the
   // motion-captured walk the whole time (a turn on the spot read as robotic); if the curve is blocked, turn on the spot as before
@@ -110,7 +110,7 @@ async function boot(){try{const G={};for(const n of['lifter','coach','member']){
     coach.pos.set(2.2,0,-15.2);coach.heading=Math.PI;place(coach);play(coach,'idle',0);coach.act_={kind:'idle'};
     renderChips();
     $('#credit').textContent='People made with MakeHuman (CC0); 3D clothing by Elvaerwyn, Mindfront and punkduck (CC-BY 4.0); walking and idle motion capture from the 100STYLE dataset by Mason, Starke and Komura (CC BY 4.0); camera form check by MediaPipe Pose Landmarker, Google (Apache 2.0).';
-    $('#go').disabled=false;$('#go').textContent=LV_DEEP?'Check my '+EXS[LV_DEEP].name.toLowerCase()+' →':'Walk me in →';
+    $('#go').disabled=false;$('#go').textContent=LV_DEEP?'Check my '+EXS[LV_DEEP].name.toLowerCase()+' →':DEEP?'Show me '+(DEEP.ex?'the '+EXS[DEEP.ex].name.toLowerCase():GROUPS[DEEP.group].name.toLowerCase()+' day')+' →':'Walk me in →';
     landingCam();cam.pos.copy(cam.tPos);cam.look.copy(cam.tLook);
     window.__ready=true;}catch(e){console.error(e);$('#go').textContent='The gym didn’t load. Reload the page';}}
 if(!/[?&]paint/.test(location.search))boot();

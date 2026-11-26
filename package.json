@@ -1,0 +1,12 @@
+{
+  "name": "train-your-muscles",
+  "private": true,
+  "description": "A 3D gym that teaches every exercise: right form, common mistakes, workout plans and an AI coach.",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "sh site/build.sh",
+    "start": "node server.mjs"
+  }
+}

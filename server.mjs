@@ -1,4 +1,4 @@
-// Muscle House server: serves site/ and the AI coach endpoints.
+// Train Your Muscles server: serves site/ and the AI coach endpoints.
 //   Cerebras (fast inference) writes everything the coach says: plans, answers, greetings.
 //   OpenAI Decisions (optional) makes the bounded calls: which mistake matches, is it a medical red flag, which body area.
 // Keys come from .env (CEREBRAS_API_KEY, OPENAI_API_KEY) and never reach the browser.
@@ -108,7 +108,7 @@ function catalogOf(b) {
 }
 const catalogText = C => C.groups.map(g => `${g.k} (${g.name}: ${g.parts.join(', ')}):\n` +
   C.exercises.filter(e => e.group === g.k).map(e => `  ${e.k}: ${e.name}, ${e.eq}, ${e.part}`).join('\n')).join('\n');
-const COACH = 'You are Coach Rana, the strength coach in Muscle House, a 3D gym app. You are warm, direct and brief, and you speak like a real coach on the gym floor.';
+const COACH = 'You are Coach Rana, the strength coach in Train Your Muscles, a 3D gym app. You are warm, direct and brief, and you speak like a real coach on the gym floor.';
 
 // ---------------------------------------------------------------- endpoints
 async function apiPlan(b) {
@@ -248,22 +248,47 @@ const API = {'/api/plan': apiPlan, '/api/ask': apiAsk, '/api/greet': apiGreet, '
 // static files: gzipped once and kept (the three people are ~5 MB each, and a phone through a tunnel felt it), with an ETag so a
 // reload asks "changed?" and gets a 304 instead of the whole file again
 const FILES = new Map();
-async function sendFile(req, res, file) {
+// analytics: switched on by environment variables (POSTHOG_KEY, GA_ID), so local runs and tests send nothing. Both IDs are
+// public by design (they end up in every visitor's browser); keeping them in the environment means changing one needs no code
+// change. Pages opened by the test scripts (?test, ?paint) skip it. Google Analytics starts with cookies off for visitors in the
+// EU/UK (Consent Mode), so it stores nothing there; elsewhere it runs normally.
+const PH_LOADER = '!function(t,e){var o,n,p,r;e.__SV||(window.posthog=e,e._i=[],e.init=function(i,s,a){function g(t,e){var o=e.split(".");2==o.length&&(t=t[o[0]],e=o[1]),t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}}(p=t.createElement("script")).type="text/javascript",p.crossOrigin="anonymous",p.async=!0,p.src=s.api_host.replace(".i.posthog.com","-assets.i.posthog.com")+"/static/array.js",(r=t.getElementsByTagName("script")[0]).parentNode.insertBefore(p,r);var u=e;for(void 0!==a?u=e[a]=[]:a="posthog",u.people=u.people||[],u.toString=function(t){var e="posthog";return"posthog"!==a&&(e+="."+a),t||(e+=" (stub)"),e},u.people.toString=function(){return u.toString(1)+".people (stub)"},o="init capture register register_once register_for_session unregister unregister_for_session getFeatureFlag getFeatureFlagPayload isFeatureEnabled reloadFeatureFlags onFeatureFlags onSessionId identify setPersonProperties group resetGroups reset get_distinct_id getGroups get_session_id get_session_replay_url alias set_config startSessionRecording stopSessionRecording sessionRecordingStarted captureException loadToolbar get_property getSessionProperty createPersonProfile opt_in_capturing opt_out_capturing has_opted_in_capturing has_opted_out_capturing debug".split(" "),n=0;n<o.length;n++)g(u,o[n]);e._i.push([i,s,a])},e.__SV=1)}(document,window.posthog||[]);';
+const ANALYTICS = (() => {
+  const id = v => String(v).replace(/[^\w.\-:/]/g, ''); // IDs and hosts only: nothing that could break out of the script
+  const ph = process.env.POSTHOG_KEY && id(process.env.POSTHOG_KEY), phHost = id(process.env.POSTHOG_HOST || 'https://us.i.posthog.com');
+  const ga = process.env.GA_ID && id(process.env.GA_ID);
+  if (!ph && !ga) return '';
+  const eu = "['AT','BE','BG','HR','CY','CZ','DK','EE','FI','FR','DE','GR','HU','IS','IE','IT','LV','LI','LT','LU','MT','NL','NO','PL','PT','RO','SK','SI','ES','SE','CH','GB']";
+  const ads = "ad_storage:'denied',ad_user_data:'denied',ad_personalization:'denied'";
+  let s = '';
+  if (ga) s += "window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}window.gtag=gtag;" +
+    `gtag('consent','default',{analytics_storage:'denied',${ads},region:${eu}});gtag('consent','default',{analytics_storage:'granted',${ads}});` +
+    `gtag('js',new Date());gtag('config','${ga}');`;
+  if (ph) s += PH_LOADER + `posthog.init('${ph}',{api_host:'${phHost}',person_profiles:'identified_only'});`;
+  return (ga ? `<script async src="https://www.googletagmanager.com/gtag/js?id=${ga}"></script>\n` : '') +
+    `<script>if(!/[?&](test|paint)\\b/.test(location.search)){${s}}</script>`;
+})();
+// the public address: requests for any other host (www., the hosting provider's own URL) get a 301 to it, so Google sees
+// one copy of each page. Unset locally.
+const CANON = (process.env.CANONICAL_HOST || '').toLowerCase();
+async function sendFile(req, res, file, status = 200) {
   const st = await stat(file); if (!st.isFile()) throw Object.assign(new Error('not a file'), {code: 'EISDIR'});
   let f = FILES.get(file);
   if (!f || f.mtime !== st.mtimeMs) {
-    const raw = await readFile(file);
+    let raw = await readFile(file);
+    if (file.endsWith('.html') && ANALYTICS) raw = Buffer.from(raw.toString('utf8').replace('<!--analytics-->', ANALYTICS));
     f = {mtime: st.mtimeMs, raw, gz: null, etag: '"' + createHash('sha1').update(raw).digest('base64url').slice(0, 20) + '"'};
     FILES.set(file, f);
   }
   const type = TYPES[extname(file).toLowerCase()] || 'application/octet-stream';
   const head = {'content-type': type, 'cache-control': 'no-cache', etag: f.etag, vary: 'accept-encoding'};
-  if (req.headers['if-none-match'] === f.etag) { res.writeHead(304, head); return res.end(); }
+  if (status === 200 && req.headers['if-none-match'] === f.etag) { res.writeHead(304, head); return res.end(); }
   const zip = /text|javascript|json|svg/.test(type) && f.raw.length > 1024 && /\bgzip\b/.test(req.headers['accept-encoding'] || '');
   if (zip && !f.gz) f.gz = gzipSync(f.raw, {level: 6});
-  res.writeHead(200, zip ? {...head, 'content-encoding': 'gzip'} : head);
+  res.writeHead(status, zip ? {...head, 'content-encoding': 'gzip'} : head);
   res.end(zip ? f.gz : f.raw);
 }
+function redirect(res, to) { res.writeHead(301, {location: to, 'cache-control': 'max-age=3600'}); res.end(); }
 function send(res, status, body, type = 'application/json') {
   res.writeHead(status, {'content-type': type, 'cache-control': 'no-cache'});
   res.end(type === 'application/json' ? JSON.stringify(body) : body);
@@ -277,25 +302,35 @@ createServer(async (req, res) => {
   // a malformed path (e.g. "//") makes new URL() throw: answer 400 instead of taking the whole server down
   let url; try { url = new URL(req.url, 'http://localhost'); } catch { return send(res, 400, 'bad request', 'text/plain'); }
   try {
+    const host = String(req.headers.host || '').toLowerCase().replace(/:\d+$/, '');
+    const local = !host || host === 'localhost' || /^(127\.|10\.|192\.168\.|\[::1\])/.test(host);
+    if (CANON && !local && url.pathname !== '/api/status' && (host !== CANON || req.headers['x-forwarded-proto'] === 'http'))
+      return redirect(res, `https://${CANON}${url.pathname}${url.search}`);
     if (url.pathname === '/api/status')
       return send(res, 200, {cerebras: !!CB.key, model: CB.model, decisions: !!(OD.key && !OD.off && !OD.dead), decisionsModel: OD.model});
     if (API[url.pathname]) {
       if (req.method !== 'POST') return send(res, 405, {error: 'POST only'});
       return send(res, 200, await API[url.pathname](await readJson(req)));
     }
+    // clean addresses: /exercises/bench-press is site/exercises/bench-press.html; a trailing slash or .html redirects to that one spelling
+    if (url.pathname.length > 1 && url.pathname.endsWith('/')) return redirect(res, url.pathname.replace(/\/+$/, '') + url.search);
+    if (url.pathname.endsWith('.html')) return redirect(res, (url.pathname === '/index.html' ? '/' : url.pathname.slice(0, -5)) + url.search);
     let p = normalize(decodeURIComponent(url.pathname)).replace(/^[/\\]+/, '');
-    if (!p || p.endsWith(sep) || p.endsWith('/')) p = join(p, 'index.html');
+    if (!p) p = 'index.html'; else if (!extname(p)) p += '.html';
     const file = join(SITE, p);
     if (!file.startsWith(SITE + sep)) return send(res, 403, 'forbidden', 'text/plain');
     return await sendFile(req, res, file); // (await: a missing file must reach the catch below as a 404, not crash the server)
   } catch (e) {
-    if (e.code === 'ENOENT' || e.code === 'EISDIR') return send(res, 404, 'not found', 'text/plain');
+    if (e.code === 'ENOENT' || e.code === 'EISDIR') {
+      if (req.method === 'GET' && !url.pathname.startsWith('/api/')) try { return await sendFile(req, res, join(SITE, '404.html'), 404); } catch {}
+      return send(res, 404, 'not found', 'text/plain');
+    }
     if (!url.pathname.startsWith('/api/')) return send(res, 500, 'server error', 'text/plain');
     console.warn('[api]', url.pathname, e.message);
     send(res, e.status || 500, {error: e.message});
   }
 }).listen(PORT, () => {
-  console.log(`Muscle House on http://localhost:${PORT}`);
+  console.log(`Train Your Muscles on http://localhost:${PORT}`);
   console.log(CB.key ? `  coach: Cerebras ${CB.model}` : '  coach: off (set CEREBRAS_API_KEY in .env)');
   console.log(OD.key && !OD.off ? `  decisions: OpenAI ${OD.model}` : '  decisions: Cerebras makes the calls (set OPENAI_API_KEY to use OpenAI Decisions)');
   // the first Decisions call of a run is slow (connection and model warm-up): make it now, not on the first question
